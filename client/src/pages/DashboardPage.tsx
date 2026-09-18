@@ -1,18 +1,17 @@
 import React from 'react';
-import { useAuth } from '../context/AuthContext.js';
+import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
 import {
   Sparkles,
-  Github,
-  Mail,
-  Calendar,
-  CloudSun,
   ShieldCheck,
   ArrowRight,
   Radio,
   Layers,
   Clock,
 } from 'lucide-react';
+import { GitHubWidget } from '../components/widgets/GitHubWidget.js';
+import { GoogleWidget } from '../components/widgets/GoogleWidget.js';
+import { WeatherWidget } from '../components/widgets/WeatherWidget.js';
 
 export const DashboardPage: React.FC = () => {
   const { user } = useAuth();
@@ -26,7 +25,7 @@ export const DashboardPage: React.FC = () => {
   });
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="space-y-8 animate-fade-in pb-12">
       {/* Hero Welcome Banner */}
       <div className="relative overflow-hidden glass-panel rounded-3xl p-8 border border-white/10 shadow-2xl bg-gradient-to-r from-indigo-950/40 via-purple-950/30 to-slate-900/50">
         <div className="absolute -right-12 -bottom-12 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -100,11 +99,11 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Digital Desk Services Overview Grid */}
-      <div>
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-xl font-bold text-white tracking-tight flex items-center space-x-2">
-            <span>Service Overview & Integrations</span>
+      {/* Main Interactive Command Center Widgets */}
+      <div className="space-y-8">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold text-white tracking-tight">
+            Command Center Widgets
           </h2>
           <Link
             to="/settings"
@@ -115,133 +114,14 @@ export const DashboardPage: React.FC = () => {
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* GitHub Integration Card */}
-          <div className="glass-card p-6 rounded-2xl border border-white/5 flex flex-col justify-between space-y-4">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-white">
-                  <Github className="w-5 h-5" />
-                </div>
-                <span
-                  className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border ${
-                    connectedServices.github
-                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                      : 'bg-slate-800/80 text-slate-400 border-slate-700'
-                  }`}
-                >
-                  {connectedServices.github ? 'Connected' : 'Not Connected'}
-                </span>
-              </div>
-              <div>
-                <h3 className="text-base font-semibold text-white">GitHub API</h3>
-                <p className="text-xs text-slate-400 mt-1">
-                  Repositories, commits, issues, and star metrics.
-                </p>
-              </div>
-            </div>
+        {/* Live Weather Forecast Widget */}
+        <WeatherWidget />
 
-            <Link
-              to="/settings"
-              className="w-full py-2 px-3 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-semibold text-slate-200 text-center transition-colors"
-            >
-              {connectedServices.github ? 'View Repository Feed' : 'Connect GitHub'}
-            </Link>
-          </div>
+        {/* Live GitHub Feed Widget */}
+        <GitHubWidget />
 
-          {/* Gmail Integration Card */}
-          <div className="glass-card p-6 rounded-2xl border border-white/5 flex flex-col justify-between space-y-4">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400">
-                  <Mail className="w-5 h-5" />
-                </div>
-                <span
-                  className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border ${
-                    connectedServices.google
-                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                      : 'bg-slate-800/80 text-slate-400 border-slate-700'
-                  }`}
-                >
-                  {connectedServices.google ? 'Connected' : 'Not Connected'}
-                </span>
-              </div>
-              <div>
-                <h3 className="text-base font-semibold text-white">Gmail API</h3>
-                <p className="text-xs text-slate-400 mt-1">
-                  Unread email counter and important message updates.
-                </p>
-              </div>
-            </div>
-
-            <Link
-              to="/settings"
-              className="w-full py-2 px-3 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-semibold text-slate-200 text-center transition-colors"
-            >
-              {connectedServices.google ? 'View Gmail Inbox' : 'Connect Google'}
-            </Link>
-          </div>
-
-          {/* Google Calendar Integration Card */}
-          <div className="glass-card p-6 rounded-2xl border border-white/5 flex flex-col justify-between space-y-4">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
-                  <Calendar className="w-5 h-5" />
-                </div>
-                <span
-                  className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border ${
-                    connectedServices.google
-                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                      : 'bg-slate-800/80 text-slate-400 border-slate-700'
-                  }`}
-                >
-                  {connectedServices.google ? 'Connected' : 'Not Connected'}
-                </span>
-              </div>
-              <div>
-                <h3 className="text-base font-semibold text-white">Google Calendar</h3>
-                <p className="text-xs text-slate-400 mt-1">
-                  Upcoming schedule events and calendar timeline.
-                </p>
-              </div>
-            </div>
-
-            <Link
-              to="/settings"
-              className="w-full py-2 px-3 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-semibold text-slate-200 text-center transition-colors"
-            >
-              {connectedServices.google ? 'View Schedule' : 'Connect Google'}
-            </Link>
-          </div>
-
-          {/* Weather Service Card */}
-          <div className="glass-card p-6 rounded-2xl border border-white/5 flex flex-col justify-between space-y-4">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
-                  <CloudSun className="w-5 h-5" />
-                </div>
-                <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
-                  Active Proxy
-                </span>
-              </div>
-              <div>
-                <h3 className="text-base font-semibold text-white">Weather Service</h3>
-                <p className="text-xs text-slate-400 mt-1">
-                  Live OpenWeatherMap backend integration proxy.
-                </p>
-              </div>
-            </div>
-
-            <Link
-              to="/settings"
-              className="w-full py-2 px-3 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-semibold text-slate-200 text-center transition-colors"
-            >
-              Configure Weather City
-            </Link>
-          </div>
-        </div>
+        {/* Live Google Suite (Gmail & Calendar) Widget */}
+        <GoogleWidget />
       </div>
     </div>
   );

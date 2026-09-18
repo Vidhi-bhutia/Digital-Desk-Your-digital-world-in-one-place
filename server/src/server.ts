@@ -5,7 +5,13 @@ import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
 import { connectDB } from './config/db';
 import authRoutes from './routes/authRoutes';
+import integrationRoutes from './routes/integrationRoutes';
 import { errorHandler } from './middleware/errorHandler';
+
+// personal mongodb debugging
+import dns from "dns";
+
+dns.setServers(["8.8.8.8", "1.1.1.1"]);
 
 // Load environment variables
 dotenv.config();
@@ -46,6 +52,7 @@ app.get('/api/health', (_req: Request, res: Response) => {
 
 // API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/integrations', integrationRoutes);
 
 // Global Error Handler
 app.use(errorHandler);
