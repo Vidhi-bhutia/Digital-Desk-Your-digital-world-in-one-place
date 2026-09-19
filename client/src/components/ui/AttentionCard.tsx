@@ -1,6 +1,6 @@
 import React from 'react';
 import { LucideIcon, ArrowUpRight } from 'lucide-react';
-import { Badge } from './Badge.js';
+import { Badge } from './Badge';
 
 interface AttentionCardProps {
   title: string;

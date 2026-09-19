@@ -3,18 +3,18 @@ import axios from 'axios';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { OAuthToken } from '../models/OAuthToken';
 import { User } from '../models/User';
-import { fetchGitHubData } from '../services/githubService';
+import { NormalizedEvent } from '../models/NormalizedEvent';
+import { fetchGitHubData, validateGitHubConnection } from '../services/githubService';
 
 export const initiateGitHubAuth = (req: AuthenticatedRequest, res: Response): void => {
   const clientId = process.env.GITHUB_CLIENT_ID;
   const callbackUrl = process.env.GITHUB_CALLBACK_URL;
 
   if (!clientId || !callbackUrl) {
-    res.status(500).json({ success: false, message: 'GitHub OAuth credentials not configured' });
+    res.status(500).json({ success: false, message: 'GitHub OAuth credentials not configured on server' });
     return;
   }
 
-  // Encode user ID into state if available, or generate state
   const state = req.user ? req.user._id.toString() : 'guest';
   const scope = 'read:user repo';
 
@@ -30,59 +30,89 @@ export const handleGitHubCallback = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+
   try {
-    const { code, state } = req.query;
+    const { code, state, error: oauthError } = req.query;
+
+    if (oauthError) {
+      res.redirect(`${frontendUrl}/integrations?error=github_cancelled&reason=${encodeURIComponent(String(oauthError))}`);
+      return;
+    }
+
     const clientId = process.env.GITHUB_CLIENT_ID;
     const clientSecret = process.env.GITHUB_CLIENT_SECRET;
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
 
     if (!code || typeof code !== 'string') {
-      res.redirect(`${frontendUrl}/settings?error=github_code_missing`);
+      res.redirect(`${frontendUrl}/integrations?error=github_code_missing`);
       return;
     }
 
     // Exchange code for access token
-    const tokenRes = await axios.post(
-      'https://github.com/login/oauth/access_token',
-      {
-        client_id: clientId,
-        client_secret: clientSecret,
-        code,
-      },
-      {
-        headers: { Accept: 'application/json' },
-      }
-    );
-
-    const accessToken = tokenRes.data.access_token;
-    if (!accessToken) {
-      res.redirect(`${frontendUrl}/settings?error=github_token_exchange_failed`);
+    let tokenRes;
+    try {
+      tokenRes = await axios.post(
+        'https://github.com/login/oauth/access_token',
+        {
+          client_id: clientId,
+          client_secret: clientSecret,
+          code,
+        },
+        {
+          headers: { Accept: 'application/json' },
+        }
+      );
+    } catch (err: any) {
+      console.error('GitHub token exchange error:', err.response?.data || err.message);
+      res.redirect(`${frontendUrl}/integrations?error=github_token_exchange_failed`);
       return;
     }
 
-    // Associate token with user (from state or current cookies)
+    const accessToken = tokenRes.data.access_token;
+    if (!accessToken) {
+      res.redirect(`${frontendUrl}/integrations?error=github_token_missing`);
+      return;
+    }
+
+    // Step 5 Verification: Validate GitHub API access before marking status connected
+    const isValid = await validateGitHubConnection(accessToken);
+    if (!isValid) {
+      res.redirect(`${frontendUrl}/integrations?error=github_api_validation_failed`);
+      return;
+    }
+
     let userId = state && typeof state === 'string' && state !== 'guest' ? state : null;
 
     if (!userId && req.cookies.jwt) {
-      // Decode JWT token if state is guest
       try {
         const jwt = await import('jsonwebtoken');
         const decoded: any = jwt.default.verify(req.cookies.jwt, process.env.JWT_SECRET || '');
         userId = decoded.id;
       } catch (e) {
-        console.error('Failed to parse JWT cookie in OAuth callback', e);
+        console.error('Failed to parse JWT cookie in GitHub OAuth callback', e);
       }
     }
 
     if (userId) {
       await OAuthToken.findOneAndUpdate(
         { user: userId, provider: 'github' },
-        { accessToken, provider: 'github', user: userId },
+        {
+          accessToken,
+          provider: 'github',
+          user: userId,
+          status: 'connected',
+          lastSyncedAt: new Date(),
+          lastError: undefined,
+        },
         { upsert: true, new: true }
       );
 
       await User.findByIdAndUpdate(userId, { 'connectedServices.github': true });
-      res.redirect(`${frontendUrl}/settings?github=connected`);
+
+      // Trigger initial sync in background
+      fetchGitHubData(userId).catch((err) => console.error('Initial GitHub sync error:', err));
+
+      res.redirect(`${frontendUrl}/integrations?github=connected`);
     } else {
       res.redirect(`${frontendUrl}/login?error=auth_required`);
     }
@@ -120,8 +150,11 @@ export const disconnectGitHub = async (
       return;
     }
 
-    await OAuthToken.deleteOne({ user: req.user._id, provider: 'github' });
-    await User.findByIdAndUpdate(req.user._id, { 'connectedServices.github': false });
+    const userId = req.user._id;
+
+    await OAuthToken.deleteOne({ user: userId, provider: 'github' });
+    await NormalizedEvent.deleteMany({ user: userId, provider: 'github' });
+    await User.findByIdAndUpdate(userId, { 'connectedServices.github': false });
 
     res.status(200).json({ success: true, message: 'GitHub integration disconnected successfully' });
   } catch (error) {

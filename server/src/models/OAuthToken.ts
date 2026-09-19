@@ -7,6 +7,9 @@ export interface IOAuthToken extends Document {
   refreshToken?: string;
   expiresAt?: Date;
   scope?: string;
+  status: 'connected' | 'connecting' | 'failed' | 'expired';
+  lastSyncedAt?: Date;
+  lastError?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -34,6 +37,17 @@ const OAuthTokenSchema: Schema<IOAuthToken> = new Schema(
       type: Date,
     },
     scope: {
+      type: String,
+    },
+    status: {
+      type: String,
+      enum: ['connected', 'connecting', 'failed', 'expired'],
+      default: 'connected',
+    },
+    lastSyncedAt: {
+      type: Date,
+    },
+    lastError: {
       type: String,
     },
   },

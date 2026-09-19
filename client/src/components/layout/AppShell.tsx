@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
-import { Topbar } from './Topbar.js';
-import { Sidebar } from './Sidebar.js';
-import { SearchModal } from '../ui/SearchModal.js';
+import { Topbar } from './Topbar';
+import { Sidebar } from './Sidebar';
+import { SearchModal } from '../ui/SearchModal';
 
 export const AppShell: React.FC = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);

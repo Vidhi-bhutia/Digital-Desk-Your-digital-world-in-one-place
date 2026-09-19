@@ -1,18 +1,18 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { AuthProvider } from './context/AuthContext.js';
-import { ThemeProvider } from './context/ThemeContext.js';
-import { ProtectedRoute } from './components/ProtectedRoute.js';
-import { AppShell } from './components/layout/AppShell.js';
-import { LoginPage } from './pages/LoginPage.js';
-import { RegisterPage } from './pages/RegisterPage.js';
-import { DashboardPage } from './pages/DashboardPage.js';
-import { ActivityPage } from './pages/ActivityPage.js';
-import { TimelinePage } from './pages/TimelinePage.js';
-import { AttentionPage } from './pages/AttentionPage.js';
-import { IntegrationsPage } from './pages/IntegrationsPage.js';
-import { SettingsPage } from './pages/SettingsPage.js';
+import { AuthProvider } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
+import { ProtectedRoute } from './components/ProtectedRoute';
+import { AppShell } from './components/layout/AppShell';
+import { LoginPage } from './pages/LoginPage';
+import { RegisterPage } from './pages/RegisterPage';
+import { DashboardPage } from './pages/DashboardPage';
+import { ActivityPage } from './pages/ActivityPage';
+import { TimelinePage } from './pages/TimelinePage';
+import { AttentionPage } from './pages/AttentionPage';
+import { IntegrationsPage } from './pages/IntegrationsPage';
+import { SettingsPage } from './pages/SettingsPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {

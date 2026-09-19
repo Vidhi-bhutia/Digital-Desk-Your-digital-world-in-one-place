@@ -3,14 +3,15 @@ import axios from 'axios';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { OAuthToken } from '../models/OAuthToken';
 import { User } from '../models/User';
-import { fetchGoogleData } from '../services/googleService';
+import { NormalizedEvent } from '../models/NormalizedEvent';
+import { fetchGoogleData, validateGoogleConnection } from '../services/googleService';
 
 export const initiateGoogleAuth = (req: AuthenticatedRequest, res: Response): void => {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const callbackUrl = process.env.GOOGLE_CALLBACK_URL;
 
   if (!clientId || !callbackUrl) {
-    res.status(500).json({ success: false, message: 'Google OAuth credentials not configured' });
+    res.status(500).json({ success: false, message: 'Google OAuth credentials not configured on server' });
     return;
   }
 
@@ -36,30 +37,52 @@ export const handleGoogleCallback = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  try {
-    const { code, state } = req.query;
-    const clientId = process.env.GOOGLE_CLIENT_ID;
-    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-    const callbackUrl = process.env.GOOGLE_CALLBACK_URL;
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
 
-    if (!code || typeof code !== 'string') {
-      res.redirect(`${frontendUrl}/settings?error=google_code_missing`);
+  try {
+    const { code, state, error: oauthError } = req.query;
+
+    if (oauthError) {
+      res.redirect(`${frontendUrl}/integrations?error=google_cancelled&reason=${encodeURIComponent(String(oauthError))}`);
       return;
     }
 
-    const tokenRes = await axios.post('https://oauth2.googleapis.com/token', {
-      client_id: clientId,
-      client_secret: clientSecret,
-      code,
-      grant_type: 'authorization_code',
-      redirect_uri: callbackUrl,
-    });
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+    const callbackUrl = process.env.GOOGLE_CALLBACK_URL;
+
+    if (!code || typeof code !== 'string') {
+      res.redirect(`${frontendUrl}/integrations?error=google_code_missing`);
+      return;
+    }
+
+    // Exchange authorization code for tokens
+    let tokenRes;
+    try {
+      tokenRes = await axios.post('https://oauth2.googleapis.com/token', {
+        client_id: clientId,
+        client_secret: clientSecret,
+        code,
+        grant_type: 'authorization_code',
+        redirect_uri: callbackUrl,
+      });
+    } catch (err: any) {
+      console.error('Google token exchange error:', err.response?.data || err.message);
+      res.redirect(`${frontendUrl}/integrations?error=google_token_exchange_failed`);
+      return;
+    }
 
     const { access_token, refresh_token, expires_in, scope } = tokenRes.data;
 
     if (!access_token) {
-      res.redirect(`${frontendUrl}/settings?error=google_token_exchange_failed`);
+      res.redirect(`${frontendUrl}/integrations?error=google_token_missing`);
+      return;
+    }
+
+    // Step 5 Verification: Validate Google API access before marking status connected
+    const isValid = await validateGoogleConnection(access_token);
+    if (!isValid) {
+      res.redirect(`${frontendUrl}/integrations?error=google_api_validation_failed`);
       return;
     }
 
@@ -71,7 +94,7 @@ export const handleGoogleCallback = async (
         const decoded: any = jwt.default.verify(req.cookies.jwt, process.env.JWT_SECRET || '');
         userId = decoded.id;
       } catch (e) {
-        console.error('Failed to parse JWT cookie in OAuth callback', e);
+        console.error('Failed to parse JWT cookie in Google OAuth callback', e);
       }
     }
 
@@ -87,12 +110,19 @@ export const handleGoogleCallback = async (
           scope,
           provider: 'google',
           user: userId,
+          status: 'connected',
+          lastSyncedAt: new Date(),
+          lastError: undefined,
         },
         { upsert: true, new: true }
       );
 
       await User.findByIdAndUpdate(userId, { 'connectedServices.google': true });
-      res.redirect(`${frontendUrl}/settings?google=connected`);
+
+      // Trigger initial sync in background
+      fetchGoogleData(userId).catch((err) => console.error('Initial Google sync error:', err));
+
+      res.redirect(`${frontendUrl}/integrations?google=connected`);
     } else {
       res.redirect(`${frontendUrl}/login?error=auth_required`);
     }
@@ -130,8 +160,22 @@ export const disconnectGoogle = async (
       return;
     }
 
-    await OAuthToken.deleteOne({ user: req.user._id, provider: 'google' });
-    await User.findByIdAndUpdate(req.user._id, { 'connectedServices.google': false });
+    const userId = req.user._id;
+
+    // Optional token revocation
+    const tokenDoc = await OAuthToken.findOne({ user: userId, provider: 'google' });
+    if (tokenDoc?.accessToken) {
+      try {
+        await axios.post(`https://oauth2.googleapis.com/revoke?token=${tokenDoc.accessToken}`);
+      } catch (e) {
+        // Ignore revocation error if token already invalid
+      }
+    }
+
+    // Delete token and cached normalized events
+    await OAuthToken.deleteOne({ user: userId, provider: 'google' });
+    await NormalizedEvent.deleteMany({ user: userId, provider: 'google' });
+    await User.findByIdAndUpdate(userId, { 'connectedServices.google': false });
 
     res.status(200).json({ success: true, message: 'Google integration disconnected successfully' });
   } catch (error) {

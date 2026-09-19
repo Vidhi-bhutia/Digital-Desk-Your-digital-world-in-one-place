@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { useAuth } from '../../context/AuthContext.js';
-import { useTheme } from '../../context/ThemeContext.js';
+import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import {
   Sparkles,
   Search,
@@ -109,15 +109,15 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenSearch }) => {
                 <div className="absolute right-0 mt-2 w-72 desk-surface rounded-3xl p-4 shadow-xl z-50 border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#151c2e] animate-scale-in space-y-3">
                   <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
                     <h4 className="text-xs font-bold text-slate-900 dark:text-white">Notifications</h4>
-                    <span className="text-[10px] font-semibold text-indigo-500">2 New</span>
+                    <span className="text-[10px] font-semibold text-indigo-500 font-mono">System Active</span>
                   </div>
 
                   <div className="space-y-2 text-xs text-slate-600 dark:text-slate-300">
                     <div className="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-start space-x-2">
                       <CheckCircle2 className="w-4 h-4 text-indigo-500 flex-shrink-0 mt-0.5" />
                       <div>
-                        <p className="font-semibold text-slate-900 dark:text-white">System Online</p>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400">All integrations synced.</p>
+                        <p className="font-semibold text-slate-900 dark:text-white">Digital Desk Online</p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">All integrations bound to real API sources.</p>
                       </div>
                     </div>
                   </div>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { LucideIcon, ExternalLink } from 'lucide-react';
-import { Badge } from './Badge.js';
+import { Badge } from './Badge';
 
 interface ActivityCardProps {
   time: string;

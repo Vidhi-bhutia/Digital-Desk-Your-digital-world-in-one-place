@@ -6,6 +6,8 @@ import morgan from 'morgan';
 import { connectDB } from './config/db';
 import authRoutes from './routes/authRoutes';
 import integrationRoutes from './routes/integrationRoutes';
+import searchRoutes from './routes/searchRoutes';
+import timelineRoutes from './routes/timelineRoutes';
 import { errorHandler } from './middleware/errorHandler';
 
 // personal mongodb debugging
@@ -56,6 +58,8 @@ app.get('/api/health', (_req: Request, res: Response) => {
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/integrations', integrationRoutes);
+app.use('/api/search', searchRoutes);
+app.use('/api', timelineRoutes);
 
 // Global Error Handler
 app.use(errorHandler);
