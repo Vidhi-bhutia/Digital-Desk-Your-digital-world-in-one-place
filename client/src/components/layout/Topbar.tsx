@@ -26,7 +26,16 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenSearch }) => {
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
-  const userLocation = localStorage.getItem('digital_desk_user_location') || null;
+  const userLocation = (() => {
+    const stored = localStorage.getItem('digital_desk_user_location');
+    if (!stored) return null;
+    try {
+      const parsed = JSON.parse(stored) as { city?: string; country?: string };
+      return parsed.city ? `${parsed.city}${parsed.country ? `, ${parsed.country}` : ''}` : null;
+    } catch {
+      return null;
+    }
+  })();
 
   return (
     <header className="sticky top-4 z-40 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

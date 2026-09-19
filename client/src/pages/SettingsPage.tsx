@@ -7,6 +7,9 @@ import {
   Bell,
   ShieldCheck,
   Lock,
+  MapPin,
+  RefreshCw,
+  Trash2,
   Sun,
   Moon,
   Monitor,
@@ -17,7 +20,14 @@ export const SettingsPage: React.FC = () => {
   const { user } = useAuth();
   const { theme, setTheme } = useTheme();
 
-  const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'privacy' | 'security'>('account');
+  const [activeTab, setActiveTab] = useState<'account' | 'appearance' | 'notifications' | 'privacy' | 'security' | 'location'>('account');
+  const [location, setLocation] = useState<Record<string, unknown> | null>(() => {
+    const stored = localStorage.getItem('digital_desk_user_location');
+    if (!stored) return null;
+    try { return JSON.parse(stored); } catch { return null; }
+  });
+  const [locationMessage, setLocationMessage] = useState('');
+  const [manualLocation, setManualLocation] = useState('');
 
   const tabs = [
     { id: 'account' as const, name: 'Account', icon: UserIcon },
@@ -25,7 +35,31 @@ export const SettingsPage: React.FC = () => {
     { id: 'notifications' as const, name: 'Notifications', icon: Bell },
     { id: 'privacy' as const, name: 'Privacy & Data', icon: ShieldCheck },
     { id: 'security' as const, name: 'Security', icon: Lock },
+    { id: 'location' as const, name: 'Location', icon: MapPin },
   ];
+
+  const saveLocation = (nextLocation: Record<string, unknown> | null) => {
+    setLocation(nextLocation);
+    if (nextLocation) localStorage.setItem('digital_desk_user_location', JSON.stringify(nextLocation));
+    else localStorage.removeItem('digital_desk_user_location');
+    window.dispatchEvent(new Event('digital-desk-location-changed'));
+  };
+
+  const refreshLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationMessage('Browser location is unavailable.');
+      return;
+    }
+    setLocationMessage('Requesting your location...');
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        saveLocation({ city: '', region: '', country: '', latitude: position.coords.latitude, longitude: position.coords.longitude, source: 'current' });
+        setLocationMessage('Location access enabled.');
+      },
+      () => setLocationMessage('Location unavailable. Check browser permission and try again.'),
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
+    );
+  };
 
   return (
     <div className="space-y-6 animate-fade-in pb-12 max-w-4xl">
@@ -147,6 +181,35 @@ export const SettingsPage: React.FC = () => {
           <div className="space-y-3">
             <h3 className="text-sm font-bold text-slate-900 dark:text-white">Security & Password</h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">Passwords are hashed using bcrypt.</p>
+          </div>
+        )}
+
+        {activeTab === 'location' && (
+          <div className="space-y-4">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">Location</h3>
+            <div className="space-y-3 text-xs">
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50">
+                <span className="text-slate-500 dark:text-slate-400">Location access</span>
+                <span className={`font-semibold ${location ? 'text-emerald-500' : 'text-slate-400'}`}>{location ? 'Enabled' : 'Disabled'}</span>
+              </div>
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50">
+                <span className="text-slate-500 dark:text-slate-400">Location source</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-200">{location?.source === 'manual' ? 'Manual' : location ? 'Current location' : 'None'}</span>
+              </div>
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50">
+                <span className="text-slate-500 dark:text-slate-400">Current location</span>
+                <button onClick={refreshLocation} className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 font-semibold"><RefreshCw className="w-3.5 h-3.5" />Refresh location</button>
+              </div>
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50">
+                <span className="text-slate-500 dark:text-slate-400">Manual location</span>
+                <form onSubmit={(event) => { event.preventDefault(); if (manualLocation.trim()) { saveLocation({ city: manualLocation.trim(), region: '', country: '', latitude: 0, longitude: 0, source: 'manual' }); setManualLocation(''); setLocationMessage('Manual location saved.'); } }} className="flex items-center gap-2">
+                  <input value={manualLocation} onChange={(event) => setManualLocation(event.target.value)} placeholder="Search city" className="glass-input rounded-lg px-2 py-1 text-xs w-28" />
+                  <button type="submit" className="text-indigo-600 dark:text-indigo-400 font-semibold">Change</button>
+                </form>
+              </div>
+              {location && <button onClick={() => { saveLocation(null); setLocationMessage('Saved location cleared.'); }} className="flex items-center gap-1.5 text-rose-500 font-semibold"><Trash2 className="w-3.5 h-3.5" />Clear saved location</button>}
+              {locationMessage && <p className="text-[11px] text-slate-500 dark:text-slate-400">{locationMessage}</p>}
+            </div>
           </div>
         )}
       </div>

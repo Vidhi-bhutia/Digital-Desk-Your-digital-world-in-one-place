@@ -18,15 +18,16 @@ interface WeatherData {
 }
 
 export const WeatherWidget: React.FC = () => {
-  const [city, setCity] = useState('London');
+  const [city, setCity] = useState<string | null>(null);
   const [searchInput, setSearchInput] = useState('');
 
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['weather', city],
     queryFn: async () => {
-      const res = await api.get<{ success: boolean; data: WeatherData }>(`/integrations/weather?city=${encodeURIComponent(city)}`);
-      return res.data.data;
+      const res = await api.get<{ success: boolean; data: { weather: WeatherData } }>(`/integrations/weather?city=${encodeURIComponent(city || '')}`);
+      return res.data.data.weather;
     },
+    enabled: !!city,
   });
 
   const handleSearch = (e: React.FormEvent) => {
@@ -78,13 +79,7 @@ export const WeatherWidget: React.FC = () => {
         </div>
       ) : error || !data ? (
         <div className="text-center py-6 text-xs text-slate-400">
-          <p className="text-red-400">Could not retrieve weather for "{city}".</p>
-          <button
-            onClick={() => { setCity('London'); refetch(); }}
-            className="mt-2 text-indigo-400 hover:underline"
-          >
-            Reset to London
-          </button>
+          <p className="text-red-400">{city ? `Could not retrieve weather for "${city}".` : 'Location unavailable.'}</p>
         </div>
       ) : (
         <div className="space-y-6">
