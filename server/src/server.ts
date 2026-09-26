@@ -8,6 +8,7 @@ import authRoutes from './routes/authRoutes';
 import integrationRoutes from './routes/integrationRoutes';
 import searchRoutes from './routes/searchRoutes';
 import timelineRoutes from './routes/timelineRoutes';
+import taskRoutes from './routes/taskRoutes';
 import { errorHandler } from './middleware/errorHandler';
 
 // personal mongodb debugging
@@ -59,6 +60,7 @@ app.get('/api/health', (_req: Request, res: Response) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/integrations', integrationRoutes);
 app.use('/api/search', searchRoutes);
+app.use('/api/tasks', taskRoutes);
 app.use('/api', timelineRoutes);
 
 // Global Error Handler

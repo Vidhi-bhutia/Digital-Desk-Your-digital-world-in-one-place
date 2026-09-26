@@ -13,12 +13,14 @@ import {
   GitCommit,
   ArrowRight,
   Plus,
+  CheckSquare,
 } from 'lucide-react';
 import { StatCard } from '../components/ui/StatCard';
 import { ActivityCard } from '../components/ui/ActivityCard';
 import { EventCard } from '../components/ui/EventCard';
 import { AttentionCard } from '../components/ui/AttentionCard';
 import { WeatherCard } from '../components/ui/WeatherCard';
+import { MyTasksWidget } from '../components/widgets/MyTasksWidget';
 import { Link } from 'react-router-dom';
 
 interface GitHubData {
@@ -35,7 +37,7 @@ interface GoogleData {
 
 interface TimelineEvent {
   id: string;
-  source: 'github' | 'gmail' | 'calendar';
+  source: 'github' | 'gmail' | 'calendar' | 'tasks';
   eventType: string;
   timestamp: string;
   title: string;
@@ -48,7 +50,7 @@ interface AttentionItem {
   title: string;
   description: string;
   type: 'urgent' | 'warning' | 'info';
-  source: 'calendar' | 'gmail' | 'github' | 'system';
+  source: 'calendar' | 'gmail' | 'github' | 'tasks' | 'system';
   link?: string;
 }
 
@@ -217,13 +219,13 @@ export const DashboardPage: React.FC = () => {
                   <ActivityCard
                     key={act.id}
                     time={new Date(act.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    source={act.source === 'github' ? 'GitHub' : act.source === 'gmail' ? 'Gmail' : 'Calendar'}
-                    icon={act.source === 'github' ? GitCommit : act.source === 'gmail' ? Mail : Calendar}
-                    iconBg={act.source === 'github' ? 'bg-indigo-500/10' : act.source === 'gmail' ? 'bg-rose-500/10' : 'bg-blue-500/10'}
-                    iconColor={act.source === 'github' ? 'text-indigo-500' : act.source === 'gmail' ? 'text-rose-500' : 'text-blue-500'}
+                    source={act.source === 'github' ? 'GitHub' : act.source === 'gmail' ? 'Gmail' : act.source === 'calendar' ? 'Calendar' : 'Task'}
+                    icon={act.source === 'github' ? GitCommit : act.source === 'gmail' ? Mail : act.source === 'calendar' ? Calendar : CheckSquare}
+                    iconBg={act.source === 'github' ? 'bg-indigo-500/10' : act.source === 'gmail' ? 'bg-rose-500/10' : act.source === 'calendar' ? 'bg-blue-500/10' : 'bg-emerald-500/10'}
+                    iconColor={act.source === 'github' ? 'text-indigo-500' : act.source === 'gmail' ? 'text-rose-500' : act.source === 'calendar' ? 'text-blue-500' : 'text-emerald-500'}
                     title={act.title}
                     description={act.description || ''}
-                    link={act.metadata?.htmlLink}
+                    link={act.metadata?.htmlLink || (act.source === 'tasks' ? '/tasks' : undefined)}
                   />
                 ))}
               </div>
@@ -304,9 +306,12 @@ export const DashboardPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Right Column (1 Col): Calendar, Attention, Weather */}
+        {/* Right Column (1 Col): My Tasks, Calendar, Attention, Weather */}
         <div className="space-y-6">
           
+          {/* My Tasks Section */}
+          <MyTasksWidget />
+
           {/* Upcoming Calendar */}
           <div className="desk-surface p-5 rounded-3xl border border-slate-200/80 dark:border-slate-800/80 bg-white/90 dark:bg-[#151c2e] shadow-soft-sm space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-800/60 pb-3">

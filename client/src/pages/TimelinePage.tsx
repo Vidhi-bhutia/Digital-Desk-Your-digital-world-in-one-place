@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '../services/api';
-import { Calendar as CalendarIcon, Github, Mail, Clock, Loader2, ExternalLink } from 'lucide-react';
+import { Calendar as CalendarIcon, Github, Mail, Clock, Loader2, ExternalLink, CheckSquare } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 interface TimelineEvent {
   id: string;
-  source: 'github' | 'gmail' | 'calendar';
+  source: 'github' | 'gmail' | 'calendar' | 'tasks';
   provider: string;
   eventType: string;
   externalId: string;
@@ -23,7 +23,7 @@ interface TimelineResponse {
 }
 
 export const TimelinePage: React.FC = () => {
-  const [sourceFilter, setSourceFilter] = useState<'all' | 'github' | 'gmail' | 'calendar'>('all');
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'tasks' | 'github' | 'gmail' | 'calendar'>('all');
   const [rangeFilter, setRangeFilter] = useState<'today' | 'yesterday' | 'this_week' | 'all'>('today');
 
   const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
@@ -84,7 +84,7 @@ export const TimelinePage: React.FC = () => {
 
           {/* Source Selector */}
           <div className="flex items-center space-x-1 p-1 desk-surface rounded-2xl border border-slate-200/80 dark:border-slate-800/80 bg-white/90 dark:bg-[#151c2e]">
-            {(['all', 'github', 'gmail', 'calendar'] as const).map((s) => (
+            {(['all', 'tasks', 'github', 'gmail', 'calendar'] as const).map((s) => (
               <button
                 key={s}
                 onClick={() => setSourceFilter(s)}
@@ -144,13 +144,22 @@ export const TimelinePage: React.FC = () => {
         ) : (
           <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200 dark:before:bg-slate-800">
             {events.map((evt) => {
-              const Icon = evt.source === 'github' ? Github : evt.source === 'gmail' ? Mail : CalendarIcon;
+              const Icon =
+                evt.source === 'github'
+                  ? Github
+                  : evt.source === 'gmail'
+                  ? Mail
+                  : evt.source === 'calendar'
+                  ? CalendarIcon
+                  : CheckSquare;
               const nodeBg =
                 evt.source === 'github'
                   ? 'bg-indigo-500 text-white'
                   : evt.source === 'gmail'
                   ? 'bg-rose-500 text-white'
-                  : 'bg-blue-500 text-white';
+                  : evt.source === 'calendar'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-emerald-500 text-white';
 
               return (
                 <div key={evt.id} className="relative group">

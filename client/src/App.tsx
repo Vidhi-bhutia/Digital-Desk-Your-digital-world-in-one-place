@@ -8,6 +8,7 @@ import { AppShell } from './components/layout/AppShell';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { DashboardPage } from './pages/DashboardPage';
+import { TasksPage } from './pages/TasksPage';
 import { ActivityPage } from './pages/ActivityPage';
 import { TimelinePage } from './pages/TimelinePage';
 import { AttentionPage } from './pages/AttentionPage';
@@ -38,6 +39,7 @@ export const App: React.FC = () => {
               <Route element={<ProtectedRoute />}>
                 <Route element={<AppShell />}>
                   <Route path="/dashboard" element={<DashboardPage />} />
+                  <Route path="/tasks" element={<TasksPage />} />
                   <Route path="/activity" element={<ActivityPage />} />
                   <Route path="/timeline" element={<TimelinePage />} />
                   <Route path="/attention" element={<AttentionPage />} />

@@ -1,22 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { Search, X, Mail, Calendar, Github, Activity, ArrowRight, Loader2, Sparkles, ExternalLink } from 'lucide-react';
+import { Search, X, Mail, Calendar, Github, Activity, ArrowRight, Loader2, Sparkles, ExternalLink, CheckSquare } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
 
 interface SearchResultItem {
   id: string;
-  source: 'github' | 'gmail' | 'calendar';
+  source: 'github' | 'gmail' | 'calendar' | 'tasks';
   provider: string;
   eventType: string;
-  externalId: string;
+  externalId?: string;
   title: string;
   description?: string;
   timestamp: string;
   url?: string;
   metadata?: any;
+  status?: string;
+  priority?: string;
 }
 
 interface GroupedSearchResults {
+  tasks?: SearchResultItem[];
   github: SearchResultItem[];
   gmail: SearchResultItem[];
   calendar: SearchResultItem[];
@@ -82,6 +85,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => 
   if (!isOpen) return null;
 
   const totalResultsCount =
+    (results?.tasks?.length || 0) +
     (results?.github.length || 0) +
     (results?.gmail.length || 0) +
     (results?.calendar.length || 0);
@@ -190,6 +194,47 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => 
           {/* Search Results Display */}
           {!isLoading && results && totalResultsCount > 0 && (
             <div className="space-y-5">
+              
+              {/* Tasks Results */}
+              {results.tasks && results.tasks.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2 px-1">
+                    <CheckSquare className="w-3.5 h-3.5 text-indigo-500" />
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                      Tasks ({results.tasks.length})
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    {results.tasks.map((task) => (
+                      <Link
+                        key={task.id}
+                        to="/tasks"
+                        onClick={onClose}
+                        className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 hover:border-indigo-500/30 transition-colors flex items-center justify-between group block"
+                      >
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <span className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-indigo-500">
+                              {task.title}
+                            </span>
+                            {task.priority && (
+                              <span className="text-[10px] px-1.5 py-0.2 rounded font-extrabold bg-indigo-500/10 text-indigo-500">
+                                {task.priority}
+                              </span>
+                            )}
+                          </div>
+                          {task.description && (
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
+                              {task.description}
+                            </p>
+                          )}
+                        </div>
+                        <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:translate-x-1 transition-transform flex-shrink-0" />
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
               
               {/* Gmail Results */}
               {results.gmail.length > 0 && (

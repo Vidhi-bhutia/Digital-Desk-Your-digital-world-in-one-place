@@ -2,9 +2,9 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 export interface INormalizedEvent extends Document {
   user: mongoose.Types.ObjectId;
-  source: 'github' | 'gmail' | 'calendar';
-  provider: 'github' | 'google';
-  eventType: 'commit' | 'pr' | 'issue' | 'email' | 'calendar_event';
+  source: 'github' | 'gmail' | 'calendar' | 'tasks';
+  provider: 'github' | 'google' | 'native' | 'tasks';
+  eventType: string;
   externalId: string;
   timestamp: Date;
   fetchedAt: Date;
@@ -25,12 +25,12 @@ const NormalizedEventSchema: Schema<INormalizedEvent> = new Schema(
     },
     source: {
       type: String,
-      enum: ['github', 'gmail', 'calendar'],
+      enum: ['github', 'gmail', 'calendar', 'tasks'],
       required: true,
     },
     provider: {
       type: String,
-      enum: ['github', 'google'],
+      enum: ['github', 'google', 'native', 'tasks'],
       required: true,
     },
     eventType: {

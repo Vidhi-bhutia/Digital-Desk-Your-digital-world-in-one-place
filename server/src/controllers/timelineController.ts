@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { NormalizedEvent } from '../models/NormalizedEvent';
+import { Task } from '../models/Task';
 import { fetchGitHubData } from '../services/githubService';
 import { fetchGoogleData } from '../services/googleService';
 import { OAuthToken } from '../models/OAuthToken';
@@ -23,7 +24,7 @@ export const getTimeline = async (
 
     const filter: any = { user: userId };
 
-    if (source !== 'all' && ['github', 'gmail', 'calendar'].includes(source)) {
+    if (source !== 'all' && ['github', 'gmail', 'calendar', 'tasks'].includes(source)) {
       filter.source = source;
     }
 
@@ -203,6 +204,48 @@ export const getAttention = async (
         source: 'github',
         timestamp: prEvents[0].timestamp,
         link: '/integrations',
+      });
+    }
+
+    // Rule 4 & 5: Real DB Tasks Overdue & Due Today
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+    // Task Overdue
+    const overdueTasks = await Task.find({
+      userId,
+      status: { $ne: 'Completed' },
+      dueDate: { $ne: null, $lt: startOfToday },
+    }).sort({ dueDate: 1 });
+
+    for (const task of overdueTasks) {
+      attentionItems.push({
+        id: `task_overdue_${task._id}`,
+        title: `Task overdue`,
+        description: `"${task.title}"`,
+        type: 'urgent',
+        source: 'tasks',
+        timestamp: task.dueDate,
+        link: '/tasks',
+      });
+    }
+
+    // Task Due Today
+    const todayTasks = await Task.find({
+      userId,
+      status: { $ne: 'Completed' },
+      dueDate: { $gte: startOfToday, $lte: endOfToday },
+    }).sort({ priority: -1 });
+
+    for (const task of todayTasks) {
+      attentionItems.push({
+        id: `task_today_${task._id}`,
+        title: `Task due today`,
+        description: `"${task.title}"`,
+        type: 'warning',
+        source: 'tasks',
+        timestamp: task.dueDate,
+        link: '/tasks',
       });
     }
 

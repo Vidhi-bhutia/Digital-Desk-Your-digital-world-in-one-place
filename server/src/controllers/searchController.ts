@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { NormalizedEvent } from '../models/NormalizedEvent';
+import { Task } from '../models/Task';
 
 export const handleGlobalSearch = async (
   req: AuthenticatedRequest,
@@ -19,6 +20,7 @@ export const handleGlobalSearch = async (
       res.status(200).json({
         success: true,
         data: {
+          tasks: [],
           github: [],
           gmail: [],
           calendar: [],
@@ -30,6 +32,12 @@ export const handleGlobalSearch = async (
 
     const userId = req.user._id;
     const searchRegex = new RegExp(queryStr, 'i');
+
+    // Search tasks in MongoDB
+    const matchingTasks = await Task.find({
+      userId,
+      $or: [{ title: searchRegex }, { description: searchRegex }],
+    }).sort({ createdAt: -1 }).limit(20);
 
     // Search normalized events in MongoDB database
     const matchingEvents = await NormalizedEvent.find({
@@ -44,10 +52,24 @@ export const handleGlobalSearch = async (
       .sort({ timestamp: -1 })
       .limit(30);
 
+    const taskResults = matchingTasks.map((t) => ({
+      id: t._id,
+      source: 'tasks',
+      provider: 'native',
+      eventType: 'task',
+      title: t.title,
+      description: t.description || '',
+      timestamp: t.createdAt,
+      status: t.status,
+      priority: t.priority,
+      dueDate: t.dueDate,
+      url: '/tasks',
+    }));
+
     const githubResults: any[] = [];
     const gmailResults: any[] = [];
     const calendarResults: any[] = [];
-    const activityResults: any[] = [];
+    const activityResults: any[] = [...taskResults];
 
     for (const item of matchingEvents) {
       const formatted = {
@@ -77,6 +99,7 @@ export const handleGlobalSearch = async (
     res.status(200).json({
       success: true,
       data: {
+        tasks: taskResults,
         github: githubResults,
         gmail: gmailResults,
         calendar: calendarResults,

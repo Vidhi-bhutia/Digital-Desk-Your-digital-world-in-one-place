@@ -2,6 +2,7 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   Home,
+  CheckSquare,
   Activity,
   Calendar,
   Search,
@@ -28,6 +29,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const mainNavItems = [
     { name: 'Home', path: '/dashboard', icon: Home },
+    { name: 'Tasks', path: '/tasks', icon: CheckSquare },
     { name: 'Activity', path: '/activity', icon: Activity },
     { name: 'Timeline', path: '/timeline', icon: Calendar },
     { name: 'Search', action: onOpenSearch, icon: Search },

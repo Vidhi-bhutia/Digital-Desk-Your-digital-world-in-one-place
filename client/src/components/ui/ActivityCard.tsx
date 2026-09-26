@@ -4,7 +4,7 @@ import { Badge } from './Badge';
 
 interface ActivityCardProps {
   time: string;
-  source: 'GitHub' | 'Gmail' | 'Calendar';
+  source: 'GitHub' | 'Gmail' | 'Calendar' | 'Task';
   icon: LucideIcon;
   iconBg: string;
   iconColor: string;
@@ -27,6 +27,7 @@ export const ActivityCard: React.FC<ActivityCardProps> = ({
     GitHub: 'indigo' as const,
     Gmail: 'rose' as const,
     Calendar: 'blue' as const,
+    Task: 'emerald' as const,
   };
 
   return (

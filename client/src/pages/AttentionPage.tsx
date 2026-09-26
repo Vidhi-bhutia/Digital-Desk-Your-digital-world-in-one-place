@@ -1,7 +1,7 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '../services/api';
-import { Bell, CheckCircle2, Calendar, Mail, Github, Loader2, Sparkles } from 'lucide-react';
+import { Bell, CheckCircle2, Calendar, Mail, Github, Loader2, Sparkles, CheckSquare } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 interface AttentionItem {
@@ -9,7 +9,7 @@ interface AttentionItem {
   title: string;
   description: string;
   type: 'urgent' | 'warning' | 'info';
-  source: 'calendar' | 'gmail' | 'github' | 'system';
+  source: 'calendar' | 'gmail' | 'github' | 'tasks' | 'system';
   timestamp?: string;
   link?: string;
 }
@@ -71,7 +71,16 @@ export const AttentionPage: React.FC = () => {
         ) : (
           <div className="space-y-3">
             {items.map((item) => {
-              const Icon = item.source === 'calendar' ? Calendar : item.source === 'gmail' ? Mail : item.source === 'github' ? Github : Sparkles;
+              const Icon =
+                item.source === 'calendar'
+                  ? Calendar
+                  : item.source === 'gmail'
+                  ? Mail
+                  : item.source === 'github'
+                  ? Github
+                  : item.source === 'tasks'
+                  ? CheckSquare
+                  : Sparkles;
               const typeColor =
                 item.type === 'urgent'
                   ? 'border-rose-500/30 bg-rose-500/5 text-rose-500'
