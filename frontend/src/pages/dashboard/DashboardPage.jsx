@@ -1,165 +1,187 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import AppShell from '../../components/layout/AppShell';
-import Card from '../../components/common/Card';
-import Badge from '../../components/common/Badge';
-import { useAuth } from '../../context/AuthContext';
-import { 
-  Mail, 
-  Github, 
-  Calendar, 
-  CloudSun, 
-  Search, 
-  CheckSquare, 
-  Music, 
-  Sparkles,
-  Layers
-} from 'lucide-react';
+import HeroHeader from '../../components/dashboard/HeroHeader';
+import QuickSummaryCards from '../../components/dashboard/QuickSummaryCards';
+import ActivityTimeline from '../../components/dashboard/ActivityTimeline';
+import UpNextWidget from '../../components/dashboard/UpNextWidget';
+import MyTasksWidget from '../../components/dashboard/MyTasksWidget';
+import WeatherWidget from '../../components/dashboard/WeatherWidget';
+import MiniCalendarWidget from '../../components/dashboard/MiniCalendarWidget';
+import QuickLinksWidget from '../../components/dashboard/QuickLinksWidget';
+import AddTaskModal from '../../components/dashboard/AddTaskModal';
+import SearchModal from '../../components/dashboard/SearchModal';
+import MusicPlayerBar from '../../components/layout/MusicPlayerBar';
+import { apiClient } from '../../services/apiClient';
+import { useToast } from '../../context/ToastContext';
 
 export const DashboardPage = () => {
-  const { user } = useAuth();
+  const navigate = useNavigate();
+  const toast = useToast();
 
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 18) return 'Good afternoon';
-    return 'Good evening';
+  const [activeTaskTab, setActiveTaskTab] = useState('today');
+  const [tasks, setTasks] = useState([]);
+  const [taskCounts, setTaskCounts] = useState({ today: 3, upcoming: 2, overdue: 2, completed: 4 });
+  const [activities, setActivities] = useState([]);
+  const [upNextEvents, setUpNextEvents] = useState([]);
+  const [weatherData, setWeatherData] = useState(null);
+
+  const [isAddTaskOpen, setIsAddTaskOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  // Fetch tasks
+  const fetchTasks = useCallback(async (filter = activeTaskTab) => {
+    try {
+      const res = await apiClient(`/tasks?filter=${filter}`);
+      if (res && res.success) {
+        setTasks(res.tasks || []);
+        if (res.counts) setTaskCounts(res.counts);
+      }
+    } catch (err) {
+      console.error('Failed to load tasks:', err);
+    }
+  }, [activeTaskTab]);
+
+  // Fetch initial dashboard data
+  useEffect(() => {
+    fetchTasks(activeTaskTab);
+
+    // Fetch Activity Feed
+    apiClient('/activity')
+      .then(res => { if (res && res.activities) setActivities(res.activities); })
+      .catch(() => {});
+
+    // Fetch Up Next / Calendar events
+    apiClient('/calendar/events')
+      .then(res => { if (res && res.events) setUpNextEvents(res.events); })
+      .catch(() => {});
+
+    // Fetch Weather Data
+    apiClient('/weather')
+      .then(res => { if (res && res.success) setWeatherData(res); })
+      .catch(() => {});
+  }, [fetchTasks, activeTaskTab]);
+
+  const handleTabChange = (tabId) => {
+    setActiveTaskTab(tabId);
+    fetchTasks(tabId);
   };
 
-  const plannedIntegrations = [
-    { name: 'Gmail', desc: 'Unified inbox and smart email summaries', icon: Mail },
-    { name: 'GitHub', desc: 'Pull requests, issues, and commit activity', icon: Github },
-    { name: 'Google Calendar', desc: 'Upcoming meetings and schedule management', icon: Calendar },
-    { name: 'Weather', desc: 'Local weather forecasts and environmental conditions', icon: CloudSun },
-    { name: 'Tasks', desc: 'Cross-platform task lists and priority management', icon: CheckSquare },
-    { name: 'Web & Desk Search', desc: 'Unified global search across all your digital assets', icon: Search },
-    { name: 'Music', desc: 'Playback controller and audio widget', icon: Music },
-  ];
+  const handleToggleTask = async (task) => {
+    try {
+      const newCompleted = !task.completed;
+      setTasks(prev => prev.map(t => (t._id === task._id || t.id === task.id ? { ...t, completed: newCompleted } : t)));
+      await apiClient(`/tasks/${task._id || task.id}`, {
+        method: 'PUT',
+        body: { completed: newCompleted },
+      });
+      fetchTasks(activeTaskTab);
+      toast.success(newCompleted ? `Completed task: ${task.title}` : `Reopened task: ${task.title}`);
+    } catch (err) {
+      fetchTasks(activeTaskTab);
+    }
+  };
+
+  const handleAddTask = async (taskData) => {
+    try {
+      await apiClient('/tasks', {
+        method: 'POST',
+        body: taskData,
+      });
+      fetchTasks(activeTaskTab);
+      toast.success('New task created!');
+    } catch (err) {
+      toast.error('Failed to create task.');
+    }
+  };
 
   return (
-    <AppShell pageTitle="Home Dashboard">
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-        {/* Welcome Header Hero Banner */}
-        <Card
+    <AppShell pageTitle="Home Dashboard" onOpenSearch={() => setIsSearchOpen(true)}>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '24px',
+          paddingBottom: '80px', // Extra padding for bottom music player bar
+        }}
+      >
+        {/* Top Hero Landscape Header */}
+        <HeroHeader />
+
+        {/* 4 Summary Cards Row */}
+        <QuickSummaryCards
+          meetingsCount={3}
+          emailsCount={12}
+          githubCount={8}
+          tasksCount={taskCounts.today || 5}
+          onNavigate={(path) => navigate(path)}
+        />
+
+        {/* Main Dashboard 2-Column Grid */}
+        <div
+          className="dashboard-main-grid"
           style={{
-            background: 'linear-gradient(135deg, var(--color-brand) 0%, var(--color-brand-dark) 100%)',
-            color: '#FFFFFF',
-            border: 'none',
-            padding: '36px 32px',
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1.7fr) minmax(0, 1fr)',
+            gap: '24px',
+            alignItems: 'start',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-            <Sparkles size={20} color="var(--color-brand-light)" />
-            <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-brand-light)', letterSpacing: '0.04em' }}>
-              PHASE 1 FOUNDATION COMPLETE
-            </span>
+          {/* Left Main Column */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            {/* Timeline Widgets 2-Col subgrid */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                gap: '20px',
+              }}
+            >
+              <ActivityTimeline
+                activities={activities}
+                onNavigate={(path) => navigate(path)}
+              />
+              <UpNextWidget
+                events={upNextEvents}
+                onNavigate={(path) => navigate(path)}
+              />
+            </div>
+
+            {/* My Tasks Section */}
+            <MyTasksWidget
+              tasks={tasks}
+              counts={taskCounts}
+              activeTab={activeTaskTab}
+              onTabChange={handleTabChange}
+              onToggleTask={handleToggleTask}
+              onOpenAddTask={() => setIsAddTaskOpen(true)}
+              onNavigate={(path) => navigate(path)}
+            />
           </div>
 
-          <h2
-            style={{
-              fontSize: '32px',
-              fontWeight: 800,
-              color: '#FFFFFF',
-              fontFamily: 'var(--font-heading)',
-              marginBottom: '10px',
-            }}
-          >
-            {getGreeting()}, {user?.name || 'User'}!
-          </h2>
-
-          <p style={{ fontSize: '16px', color: 'rgba(255, 255, 255, 0.85)', maxWidth: '640px', lineHeight: 1.6 }}>
-            Welcome to Digital Desk. Your digital world foundation is now ready. This dashboard will eventually bring your digital world together.
-          </p>
-        </Card>
-
-        {/* Phase 1 Status Summary */}
-        <div>
-          <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--color-text)', marginBottom: '16px' }}>
-            System Architecture Status
-          </h3>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-              gap: '20px',
-            }}
-          >
-            <Card title="Authentication System">
-              <p style={{ fontSize: '14px', color: 'var(--color-text-muted)', lineHeight: 1.5, marginBottom: '16px' }}>
-                Secure HTTP-only cookies, password hashing with bcrypt, JWT authentication, and token reset flows.
-              </p>
-              <Badge variant="success">Active & Protected</Badge>
-            </Card>
-
-            <Card title="Database Connection">
-              <p style={{ fontSize: '14px', color: 'var(--color-text-muted)', lineHeight: 1.5, marginBottom: '16px' }}>
-                MongoDB database connected with graceful failure modes and normalized schema structure.
-              </p>
-              <Badge variant="success">Connected</Badge>
-            </Card>
-
-            <Card title="Brand Design System">
-              <p style={{ fontSize: '14px', color: 'var(--color-text-muted)', lineHeight: 1.5, marginBottom: '16px' }}>
-                Dark forest green palette, light/dark mode CSS tokens, responsive layouts, and UI component suite.
-              </p>
-              <Badge variant="brand">Light / Dark Ready</Badge>
-            </Card>
-          </div>
-        </div>
-
-        {/* Upcoming Phase 2 Integrations Roadmap Grid */}
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-            <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--color-text)' }}>
-              Upcoming Integrations (Phase 2+)
-            </h3>
-            <Badge variant="info">Planned Modules</Badge>
-          </div>
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-              gap: '20px',
-            }}
-          >
-            {plannedIntegrations.map((item, index) => {
-              const Icon = item.icon;
-              return (
-                <Card
-                  key={index}
-                  hoverable
-                  action={<Badge variant="default">Phase 2</Badge>}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '12px' }}>
-                    <div
-                      style={{
-                        width: '42px',
-                        height: '42px',
-                        borderRadius: 'var(--radius-md)',
-                        backgroundColor: 'var(--color-brand-subtle)',
-                        color: 'var(--color-brand)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <Icon size={22} />
-                    </div>
-                    <div>
-                      <h4 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-text)' }}>
-                        {item.name}
-                      </h4>
-                    </div>
-                  </div>
-                  <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', lineHeight: 1.4 }}>
-                    {item.desc}
-                  </p>
-                </Card>
-              );
-            })}
+          {/* Right Column (Widgets Sidebar) */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <WeatherWidget weatherData={weatherData} />
+            <MiniCalendarWidget />
+            <QuickLinksWidget onNavigate={(path) => navigate(path)} />
           </div>
         </div>
       </div>
+
+      {/* Global Fixed Bottom Music Player Bar */}
+      <MusicPlayerBar />
+
+      {/* Modals */}
+      <AddTaskModal
+        isOpen={isAddTaskOpen}
+        onClose={() => setIsAddTaskOpen(false)}
+        onAddTask={handleAddTask}
+      />
+
+      <SearchModal
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+      />
     </AppShell>
   );
 };

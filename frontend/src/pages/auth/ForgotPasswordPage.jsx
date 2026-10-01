@@ -1,22 +1,31 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { LogoFull } from '../../components/common/Logo';
 import Input from '../../components/common/Input';
+import PasswordInput from '../../components/common/PasswordInput';
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
 import ErrorMessage from '../../components/common/ErrorMessage';
 import { authService } from '../../services/authService';
-import { Mail, ArrowLeft, CheckCircle2, KeyRound } from 'lucide-react';
+import { useToast } from '../../context/ToastContext';
+import { Mail, ArrowLeft, CheckCircle2, KeyRound, ShieldCheck } from 'lucide-react';
 
 export const ForgotPasswordPage = () => {
+  const [step, setStep] = useState(1); // 1: Send OTP, 2: Verify OTP & Reset Password
   const [email, setEmail] = useState('');
-  const [submitted, setSubmitted] = useState(false);
-  const [responseMessage, setResponseMessage] = useState('');
-  const [debugUrl, setDebugUrl] = useState('');
+  const [otp, setOtp] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  
+  const [debugOtp, setDebugOtp] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e) => {
+  const toast = useToast();
+  const navigate = useNavigate();
+
+  // Step 1: Request OTP
+  const handleRequestOtp = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -28,13 +37,45 @@ export const ForgotPasswordPage = () => {
     setLoading(true);
     try {
       const res = await authService.forgotPassword(email);
-      setSubmitted(true);
-      setResponseMessage(res.message || 'If an account exists for this email, reset instructions have been sent.');
-      if (res.debugResetUrl) {
-        setDebugUrl(res.debugResetUrl);
+      setStep(2);
+      toast.success('OTP sent to your email!');
+      if (res.debugOtp) {
+        setDebugOtp(res.debugOtp);
       }
     } catch (err) {
       setError(err.message || 'An error occurred. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Step 2: Verify OTP & Reset Password
+  const handleVerifyOtpAndReset = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    if (!otp || otp.trim().length !== 6) {
+      setError('Please enter the valid 6-digit OTP code.');
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setError('Password must be at least 8 characters long.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await authService.resetPassword(otp.trim(), newPassword, email);
+      toast.success('Your password has been updated successfully!');
+      setStep(3); // Success step
+    } catch (err) {
+      setError(err.message || 'Invalid or expired 6-digit OTP code.');
     } finally {
       setLoading(false);
     }
@@ -71,68 +112,45 @@ export const ForgotPasswordPage = () => {
               marginBottom: '16px',
             }}
           >
-            <KeyRound size={24} />
+            {step === 2 ? <ShieldCheck size={24} /> : <KeyRound size={24} />}
           </div>
           <h2 style={{ fontSize: '24px', fontWeight: 800, color: 'var(--color-text)', marginBottom: '8px' }}>
-            Forgot your password?
+            {step === 1 ? 'Forgot your password?' : step === 2 ? 'Enter 6-Digit OTP' : 'Password Updated!'}
           </h2>
           <p style={{ fontSize: '14px', color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
-            Enter your email and we'll send instructions to reset your password.
+            {step === 1
+              ? "Enter your email and we'll send a 6-digit OTP code to verify your account."
+              : step === 2
+              ? `Enter the 6-digit OTP code sent to ${email}`
+              : 'Your password has been reset successfully. You can now log in.'}
           </p>
         </div>
 
-        {error && <ErrorMessage title="Error" message={error} />}
+        {error && <ErrorMessage title="Verification error" message={error} />}
 
-        {submitted ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div
-              style={{
-                padding: '16px',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: 'var(--color-success-bg)',
-                border: '1px solid var(--color-success-border)',
-                color: 'var(--color-success)',
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: '12px',
-                fontSize: '14px',
-              }}
-            >
-              <CheckCircle2 size={20} style={{ flexShrink: 0, marginTop: '2px' }} />
-              <div>{responseMessage}</div>
-            </div>
-
-            {/* Development helper link when SMTP is not configured */}
-            {debugUrl && (
-              <div
-                style={{
-                  padding: '14px',
-                  borderRadius: 'var(--radius-md)',
-                  backgroundColor: 'var(--color-surface-hover)',
-                  border: '1px stroke var(--color-border)',
-                  fontSize: '13px',
-                }}
-              >
-                <div style={{ fontWeight: 700, color: 'var(--color-brand)', marginBottom: '4px' }}>
-                  Development Direct Reset Link:
-                </div>
-                <Link
-                  to={debugUrl.replace('http://localhost:5173', '')}
-                  style={{ color: 'var(--color-text)', wordBreak: 'break-all', fontWeight: 600 }}
-                >
-                  Click here to simulate opening password reset link
-                </Link>
-              </div>
-            )}
-
-            <Link to="/login" style={{ textDecoration: 'none', marginTop: '8px' }}>
-              <Button variant="outline" fullWidth icon={ArrowLeft}>
-                Back to Login
-              </Button>
-            </Link>
+        {/* Development Helper Box */}
+        {debugOtp && step === 2 && (
+          <div
+            style={{
+              padding: '12px 16px',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'var(--color-brand-subtle)',
+              border: '1px stroke var(--color-brand-light)',
+              marginBottom: '20px',
+              fontSize: '13px',
+              color: 'var(--color-brand-dark)',
+              textAlign: 'center',
+            }}
+          >
+            <strong>DEV SIMULATION OTP:</strong>{' '}
+            <span style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '4px', color: 'var(--color-brand)' }}>
+              {debugOtp}
+            </span>
           </div>
-        ) : (
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        )}
+
+        {step === 1 && (
+          <form onSubmit={handleRequestOtp} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <Input
               label="Email Address"
               type="email"
@@ -146,7 +164,7 @@ export const ForgotPasswordPage = () => {
             />
 
             <Button type="submit" variant="primary" size="lg" fullWidth isLoading={loading}>
-              Send reset link
+              Send OTP Code
             </Button>
 
             <div style={{ textAlign: 'center', marginTop: '8px' }}>
@@ -166,6 +184,92 @@ export const ForgotPasswordPage = () => {
               </Link>
             </div>
           </form>
+        )}
+
+        {step === 2 && (
+          <form onSubmit={handleVerifyOtpAndReset} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+            <Input
+              label="6-Digit OTP Code"
+              type="text"
+              id="otp-code"
+              placeholder="123456"
+              maxLength={6}
+              value={otp}
+              onChange={(e) => setOtp(e.target.value)}
+              required
+              style={{
+                fontSize: '20px',
+                fontWeight: 800,
+                letterSpacing: '8px',
+                textAlign: 'center',
+              }}
+            />
+
+            <PasswordInput
+              label="New Password"
+              id="otp-new-password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              showStrength
+              required
+            />
+
+            <PasswordInput
+              label="Confirm New Password"
+              id="otp-confirm-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              error={confirmPassword && newPassword !== confirmPassword ? 'Passwords do not match' : null}
+              required
+            />
+
+            <Button type="submit" variant="primary" size="lg" fullWidth isLoading={loading}>
+              Verify OTP & Reset Password
+            </Button>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px' }}>
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', fontSize: '13px', cursor: 'pointer', fontWeight: 600 }}
+              >
+                Change Email
+              </button>
+              <button
+                type="button"
+                onClick={handleRequestOtp}
+                style={{ background: 'none', border: 'none', color: 'var(--color-brand)', fontSize: '13px', cursor: 'pointer', fontWeight: 700 }}
+              >
+                Resend OTP
+              </button>
+            </div>
+          </form>
+        )}
+
+        {step === 3 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', textAlign: 'center' }}>
+            <div
+              style={{
+                padding: '16px',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'var(--color-success-bg)',
+                border: '1px solid var(--color-success-border)',
+                color: 'var(--color-success)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '10px',
+                fontWeight: 600,
+              }}
+            >
+              <CheckCircle2 size={20} />
+              <span>Your password has been updated successfully.</span>
+            </div>
+
+            <Button variant="primary" fullWidth icon={ArrowLeft} onClick={() => navigate('/login')}>
+              Back to Login
+            </Button>
+          </div>
         )}
       </Card>
     </div>

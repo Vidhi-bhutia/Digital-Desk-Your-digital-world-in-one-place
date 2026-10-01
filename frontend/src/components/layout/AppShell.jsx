@@ -4,7 +4,7 @@ import Topbar from './Topbar';
 import MainContent from './MainContent';
 import MobileNav from './MobileNav';
 
-export const AppShell = ({ children, pageTitle }) => {
+export const AppShell = ({ children, pageTitle, onOpenSearch }) => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
 
@@ -43,6 +43,7 @@ export const AppShell = ({ children, pageTitle }) => {
         <Topbar
           pageTitle={pageTitle}
           onOpenMobileNav={() => setIsMobileNavOpen(true)}
+          onOpenSearch={onOpenSearch}
         />
         <MainContent>{children}</MainContent>
       </div>

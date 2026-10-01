@@ -2,7 +2,7 @@ import { apiClient } from './apiClient';
 
 export const authService = {
   /**
-   * Register a new user account
+   * Register a new user account & send Welcome Email
    */
   async register(name, email, password) {
     return apiClient('/auth/register', {
@@ -40,7 +40,7 @@ export const authService = {
   },
 
   /**
-   * Request password reset token
+   * Request 6-digit password reset OTP code
    */
   async forgotPassword(email) {
     return apiClient('/auth/forgot-password', {
@@ -50,12 +50,20 @@ export const authService = {
   },
 
   /**
-   * Reset password with token
+   * Reset password with 6-digit OTP code or reset token
    */
-  async resetPassword(token, password) {
+  async resetPassword(otpOrToken, password, email = null) {
+    const body = { password };
+    if (otpOrToken && otpOrToken.length === 6) {
+      body.otp = otpOrToken;
+      body.email = email;
+    } else {
+      body.token = otpOrToken;
+    }
+
     return apiClient('/auth/reset-password', {
       method: 'POST',
-      body: { token, password },
+      body,
     });
   },
 };

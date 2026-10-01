@@ -1,7 +1,8 @@
 const validator = require('validator');
 const User = require('../models/User');
 const { generateToken } = require('../utils/jwt');
-const { generateResetToken, hashToken } = require('../utils/crypto');
+const { generateResetToken, generateOtp, hashToken } = require('../utils/crypto');
+const { sendWelcomeEmail, sendOtpEmail } = require('../services/emailService');
 const config = require('../config/env');
 const logger = require('../utils/logger');
 
@@ -18,13 +19,12 @@ const sendAuthCookie = (res, token) => {
 
 /**
  * @route POST /api/auth/register
- * @desc Register a new user
+ * @desc Register a new user & send personalized Welcome Email
  */
 const register = async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
 
-    // Validation
     if (!name || !name.trim()) {
       return res.status(400).json({
         success: false,
@@ -71,17 +71,20 @@ const register = async (req, res, next) => {
       passwordHash,
     });
 
+    // Send Personalized Welcome Email
+    sendWelcomeEmail(user).catch(err => logger.error('Async welcome email send error:', err));
+
     // Generate token & set cookie
     const token = generateToken({ id: user._id });
     sendAuthCookie(res, token);
 
-    logger.info(`User registered successfully: ${user.email}`);
+    logger.info(`User registered & welcome email dispatched: ${user.email}`);
 
     return res.status(201).json({
       success: true,
-      message: 'Account created successfully.',
+      message: 'Account created successfully. Welcome email sent!',
       user: user.toAuthUser(),
-      token, // Also return token in response body for flexible client integration
+      token,
     });
   } catch (error) {
     next(error);
@@ -106,7 +109,6 @@ const login = async (req, res, next) => {
 
     const normalizedEmail = email.toLowerCase().trim();
 
-    // Find user by email (include passwordHash)
     const user = await User.findOne({ email: normalizedEmail }).select('+passwordHash');
     if (!user) {
       return res.status(401).json({
@@ -116,7 +118,6 @@ const login = async (req, res, next) => {
       });
     }
 
-    // Compare password
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
       return res.status(401).json({
@@ -126,7 +127,6 @@ const login = async (req, res, next) => {
       });
     }
 
-    // Generate token & set cookie
     const token = generateToken({ id: user._id });
     sendAuthCookie(res, token);
 
@@ -173,7 +173,7 @@ const getMe = async (req, res) => {
 
 /**
  * @route POST /api/auth/forgot-password
- * @desc Send password reset token (generic response)
+ * @desc Send 6-digit OTP verification email to user
  */
 const forgotPassword = async (req, res, next) => {
   try {
@@ -187,12 +187,11 @@ const forgotPassword = async (req, res, next) => {
       });
     }
 
-    const safeGenericMessage = 'If an account exists for this email, reset instructions have been sent.';
+    const safeGenericMessage = 'If an account exists for this email, a 6-digit OTP code has been sent.';
 
     const normalizedEmail = email.toLowerCase().trim();
     const user = await User.findOne({ email: normalizedEmail });
 
-    // Always return safe generic response regardless of whether email exists
     if (!user) {
       return res.status(200).json({
         success: true,
@@ -200,21 +199,29 @@ const forgotPassword = async (req, res, next) => {
       });
     }
 
-    // Generate reset token
+    // Generate 6-digit OTP & Reset Token
+    const otpCode = generateOtp();
     const { rawToken, hashedToken } = generateResetToken();
+
+    user.passwordResetOtpHash = hashToken(otpCode);
     user.passwordResetTokenHash = hashedToken;
     user.passwordResetExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
+    user.passwordResetOtpExpires = new Date(Date.now() + 10 * 60 * 1000);
     await user.save();
 
-    logger.info(`Password reset requested for: ${user.email}`);
+    // Send OTP email
+    sendOtpEmail(user, otpCode).catch(err => logger.error('Async OTP email error:', err));
 
-    // In development mode, include rawToken in response for convenience in testing
+    logger.info(`Password reset OTP requested for: ${user.email}`);
+
     const responsePayload = {
       success: true,
       message: safeGenericMessage,
     };
 
+    // In development mode, return debug OTP for testing convenience
     if (config.nodeEnv === 'development' || config.nodeEnv === 'test') {
+      responsePayload.debugOtp = otpCode;
       responsePayload.debugResetToken = rawToken;
       responsePayload.debugResetUrl = `${config.frontendUrl}/reset-password/${rawToken}`;
     }
@@ -227,19 +234,11 @@ const forgotPassword = async (req, res, next) => {
 
 /**
  * @route POST /api/auth/reset-password
- * @desc Reset password using token
+ * @desc Reset password using 6-digit OTP code or reset token
  */
 const resetPassword = async (req, res, next) => {
   try {
-    const { token, password } = req.body;
-
-    if (!token) {
-      return res.status(400).json({
-        success: false,
-        message: 'Reset token is required.',
-        code: 'VALIDATION_ERROR',
-      });
-    }
+    const { email, otp, token, password } = req.body;
 
     if (!password || password.length < 8) {
       return res.status(400).json({
@@ -249,34 +248,55 @@ const resetPassword = async (req, res, next) => {
       });
     }
 
-    // Hash token to compare with DB
-    const hashedToken = hashToken(token);
+    let user = null;
 
-    // Find user with valid matching token & not expired
-    const user = await User.findOne({
-      passwordResetTokenHash: hashedToken,
-      passwordResetExpires: { $gt: new Date() },
-    }).select('+passwordResetTokenHash +passwordResetExpires');
+    // Case 1: Verification using 6-Digit OTP code
+    if (otp && email) {
+      const normalizedEmail = email.toLowerCase().trim();
+      const hashedOtp = hashToken(otp.trim());
+
+      user = await User.findOne({
+        email: normalizedEmail,
+        passwordResetOtpHash: hashedOtp,
+        passwordResetOtpExpires: { $gt: new Date() },
+      }).select('+passwordResetOtpHash +passwordResetOtpExpires');
+    }
+    // Case 2: Verification using token URL parameter
+    else if (token) {
+      const hashedToken = hashToken(token);
+      user = await User.findOne({
+        passwordResetTokenHash: hashedToken,
+        passwordResetExpires: { $gt: new Date() },
+      }).select('+passwordResetTokenHash +passwordResetExpires');
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: 'OTP code or reset token is required.',
+        code: 'VALIDATION_ERROR',
+      });
+    }
 
     if (!user) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid or expired password reset token.',
-        code: 'INVALID_TOKEN',
+        message: 'Invalid or expired 6-digit OTP code / reset token.',
+        code: 'INVALID_OTP',
       });
     }
 
-    // Set new password
+    // Update password
     user.passwordHash = await User.hashPassword(password);
     user.passwordResetTokenHash = undefined;
     user.passwordResetExpires = undefined;
+    user.passwordResetOtpHash = undefined;
+    user.passwordResetOtpExpires = undefined;
     await user.save();
 
-    logger.info(`Password successfully reset for user: ${user.email}`);
+    logger.info(`Password successfully reset for user via OTP/Token: ${user.email}`);
 
     return res.status(200).json({
       success: true,
-      message: 'Your password has been updated successfully.',
+      message: 'Your password has been updated successfully. You can now log in with your new password.',
     });
   } catch (error) {
     next(error);

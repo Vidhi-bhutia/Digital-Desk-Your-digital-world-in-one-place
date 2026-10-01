@@ -11,7 +11,15 @@ const generateResetToken = () => {
 };
 
 /**
- * Hashes a raw token with SHA-256
+ * Generates a random 6-digit OTP string (e.g. "482910")
+ * @returns {string}
+ */
+const generateOtp = () => {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+};
+
+/**
+ * Hashes a raw token/OTP with SHA-256
  * @param {string} token 
  * @returns {string}
  */
@@ -21,5 +29,6 @@ const hashToken = (token) => {
 
 module.exports = {
   generateResetToken,
+  generateOtp,
   hashToken,
 };

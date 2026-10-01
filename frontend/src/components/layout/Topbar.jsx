@@ -5,7 +5,7 @@ import { useTheme } from '../../context/ThemeContext';
 import Avatar from '../common/Avatar';
 import Badge from '../common/Badge';
 
-export const Topbar = ({ onOpenMobileNav, pageTitle = 'Dashboard' }) => {
+export const Topbar = ({ onOpenMobileNav, onOpenSearch, pageTitle = 'Dashboard' }) => {
   const { user } = useAuth();
   const { isDark, toggleTheme } = useTheme();
 
@@ -33,7 +33,7 @@ export const Topbar = ({ onOpenMobileNav, pageTitle = 'Dashboard' }) => {
           className="mobile-menu-btn"
           aria-label="Open Navigation Menu"
           style={{
-            display: 'none', // Shown on mobile via CSS media query
+            display: 'none',
             background: 'none',
             border: 'none',
             cursor: 'pointer',
@@ -51,13 +51,15 @@ export const Topbar = ({ onOpenMobileNav, pageTitle = 'Dashboard' }) => {
         </div>
       </div>
 
-      {/* Middle: Universal Digital Desk Search Bar Placeholder */}
+      {/* Middle: Universal Digital Desk Search Bar */}
       <div
+        onClick={onOpenSearch}
         style={{
           flex: 1,
           maxWidth: '480px',
           margin: '0 24px',
           position: 'relative',
+          cursor: 'pointer',
         }}
       >
         <div
@@ -76,9 +78,8 @@ export const Topbar = ({ onOpenMobileNav, pageTitle = 'Dashboard' }) => {
         </div>
         <input
           type="text"
-          placeholder="Search your digital world... (Ctrl + K)"
+          placeholder="Search the web or your digital desk... (Ctrl + K)"
           readOnly
-          onClick={() => alert('Digital Desk Search integration will be added in Phase 2!')}
           style={{
             width: '100%',
             height: '42px',
@@ -118,7 +119,7 @@ export const Topbar = ({ onOpenMobileNav, pageTitle = 'Dashboard' }) => {
         </div>
       </div>
 
-      {/* Right side: Quick Status & Actions */}
+      {/* Right side: Quick Actions & Profile */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         <button
           onClick={toggleTheme}
@@ -141,7 +142,6 @@ export const Topbar = ({ onOpenMobileNav, pageTitle = 'Dashboard' }) => {
 
         <button
           aria-label="Notifications"
-          onClick={() => alert('Notifications will be available in Phase 2!')}
           style={{
             width: '38px',
             height: '38px',
@@ -176,7 +176,7 @@ export const Topbar = ({ onOpenMobileNav, pageTitle = 'Dashboard' }) => {
             <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-text)' }}>
               {user?.name || 'User'}
             </span>
-            <Badge variant="brand" size="sm">Phase 1 Foundation</Badge>
+            <Badge variant="brand" size="sm">Phase 2 Dashboard</Badge>
           </div>
         </div>
       </div>
