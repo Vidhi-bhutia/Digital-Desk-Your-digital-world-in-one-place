@@ -29,26 +29,18 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
-    passwordResetTokenHash: {
-      type: String,
-      default: null,
-      select: false,
-    },
-    passwordResetExpires: {
-      type: Date,
-      default: null,
-      select: false,
-    },
-    passwordResetOtpHash: {
-      type: String,
-      default: null,
-      select: false,
-    },
-    passwordResetOtpExpires: {
-      type: Date,
-      default: null,
-      select: false,
-    },
+    // OAuth & Service Tokens
+    githubUsername: { type: String, default: '' },
+    githubAccessToken: { type: String, default: '', select: false },
+    googleEmail: { type: String, default: '' },
+    googleAccessToken: { type: String, default: '', select: false },
+    googleRefreshToken: { type: String, default: '', select: false },
+    
+    // Password Reset
+    passwordResetTokenHash: { type: String, default: null, select: false },
+    passwordResetExpires: { type: Date, default: null, select: false },
+    passwordResetOtpHash: { type: String, default: null, select: false },
+    passwordResetOtpExpires: { type: Date, default: null, select: false },
   },
   {
     timestamps: true,
@@ -82,6 +74,10 @@ userSchema.methods.toAuthUser = function () {
     name: this.name,
     email: this.email,
     avatar: this.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(this.name)}&background=0F5132&color=fff`,
+    githubUsername: this.githubUsername || '',
+    googleEmail: this.googleEmail || '',
+    isGithubConnected: !!this.githubUsername,
+    isGoogleConnected: !!this.googleEmail,
     createdAt: this.createdAt,
     updatedAt: this.updatedAt,
   };

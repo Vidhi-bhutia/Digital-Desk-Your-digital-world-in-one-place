@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { LogoFull } from '../../components/common/Logo';
 import Input from '../../components/common/Input';
@@ -8,54 +8,103 @@ import Card from '../../components/common/Card';
 import ErrorMessage from '../../components/common/ErrorMessage';
 import { authService } from '../../services/authService';
 import { useToast } from '../../context/ToastContext';
-import { Mail, ArrowLeft, CheckCircle2, KeyRound, ShieldCheck } from 'lucide-react';
+import { Mail, ArrowLeft, CheckCircle2, ShieldCheck, RefreshCw, KeyRound } from 'lucide-react';
 
 export const ForgotPasswordPage = () => {
-  const [step, setStep] = useState(1); // 1: Send OTP, 2: Verify OTP & Reset Password
+  const [step, setStep] = useState(1); // 1: Send OTP, 2: OTP + New Password Form, 3: Success
   const [email, setEmail] = useState('');
-  const [otp, setOtp] = useState('');
+  const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  
-  const [debugOtp, setDebugOtp] = useState('');
+
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [timer, setTimer] = useState(600); // 10 mins
 
+  const inputRefs = useRef([]);
   const toast = useToast();
   const navigate = useNavigate();
 
-  // Step 1: Request OTP
+  // Timer countdown effect for Step 2
+  useEffect(() => {
+    let interval = null;
+    if (step === 2 && timer > 0) {
+      interval = setInterval(() => {
+        setTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [step, timer]);
+
+  const formatTimer = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // STEP 1: Request OTP Code
   const handleRequestOtp = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     setError('');
 
     if (!email || !email.includes('@')) {
-      setError('Please provide a valid email address.');
+      setError('Please enter a valid email address.');
       return;
     }
 
     setLoading(true);
     try {
-      const res = await authService.forgotPassword(email);
+      await authService.forgotPassword(email);
       setStep(2);
-      toast.success('OTP sent to your email!');
-      if (res.debugOtp) {
-        setDebugOtp(res.debugOtp);
-      }
+      setTimer(600);
+      setOtpDigits(['', '', '', '', '', '']);
+      toast.success('6-digit OTP code sent to your email!');
     } catch (err) {
-      setError(err.message || 'An error occurred. Please try again.');
+      setError(err.message || 'Failed to send OTP code. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Step 2: Verify OTP & Reset Password
+  // Handle 6-Digit Input Change & Auto Focus Next Box
+  const handleDigitChange = (index, value) => {
+    const char = value.replace(/[^0-9]/g, '');
+    if (!char && value !== '') return;
+
+    const newDigits = [...otpDigits];
+
+    if (char.length > 1) {
+      const pasted = char.slice(0, 6).split('');
+      for (let i = 0; i < 6; i++) {
+        newDigits[i] = pasted[i] || '';
+      }
+      setOtpDigits(newDigits);
+      inputRefs.current[5]?.focus();
+      return;
+    }
+
+    newDigits[index] = char;
+    setOtpDigits(newDigits);
+
+    if (char && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleKeyDown = (index, e) => {
+    if (e.key === 'Backspace' && !otpDigits[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  // STEP 2: Verify OTP Code & Set New Password
   const handleVerifyOtpAndReset = async (e) => {
     e.preventDefault();
     setError('');
 
-    if (!otp || otp.trim().length !== 6) {
-      setError('Please enter the valid 6-digit OTP code.');
+    const fullOtp = otpDigits.join('');
+    if (fullOtp.length !== 6) {
+      setError('Please enter all 6 digits of the OTP code.');
       return;
     }
 
@@ -71,11 +120,11 @@ export const ForgotPasswordPage = () => {
 
     setLoading(true);
     try {
-      await authService.resetPassword(otp.trim(), newPassword, email);
-      toast.success('Your password has been updated successfully!');
-      setStep(3); // Success step
+      await authService.resetPassword(fullOtp, newPassword, email);
+      toast.success('Password updated successfully!');
+      setStep(3);
     } catch (err) {
-      setError(err.message || 'Invalid or expired 6-digit OTP code.');
+      setError(err.message || 'Invalid or expired OTP code.');
     } finally {
       setLoading(false);
     }
@@ -86,24 +135,35 @@ export const ForgotPasswordPage = () => {
       style={{
         minHeight: '100vh',
         backgroundColor: 'var(--color-bg)',
+        backgroundImage: `radial-gradient(circle at 50% 0%, rgba(16, 185, 129, 0.08) 0%, transparent 60%)`,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '24px',
+        padding: '32px 20px',
       }}
     >
-      <div style={{ marginBottom: '32px' }}>
-        <LogoFull size={40} />
+      <div style={{ marginBottom: '28px' }}>
+        <LogoFull size={42} />
       </div>
 
-      <Card style={{ width: '100%', maxWidth: '440px', padding: '32px' }}>
-        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+      <div
+        style={{
+          width: '100%',
+          maxWidth: '460px',
+          backgroundColor: 'var(--color-surface)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius-xl)',
+          boxShadow: 'var(--shadow-xl)',
+          padding: '36px',
+        }}
+      >
+        <div style={{ textAlign: 'center', marginBottom: '28px' }}>
           <div
             style={{
-              width: '48px',
-              height: '48px',
-              borderRadius: 'var(--radius-full)',
+              width: '52px',
+              height: '52px',
+              borderRadius: '50%',
               backgroundColor: 'var(--color-brand-subtle)',
               color: 'var(--color-brand)',
               display: 'inline-flex',
@@ -112,47 +172,35 @@ export const ForgotPasswordPage = () => {
               marginBottom: '16px',
             }}
           >
-            {step === 2 ? <ShieldCheck size={24} /> : <KeyRound size={24} />}
+            {step === 1 ? (
+              <KeyRound size={26} />
+            ) : step === 2 ? (
+              <ShieldCheck size={26} />
+            ) : (
+              <CheckCircle2 size={26} />
+            )}
           </div>
-          <h2 style={{ fontSize: '24px', fontWeight: 800, color: 'var(--color-text)', marginBottom: '8px' }}>
-            {step === 1 ? 'Forgot your password?' : step === 2 ? 'Enter 6-Digit OTP' : 'Password Updated!'}
+
+          <h2 style={{ fontSize: '26px', fontWeight: 800, color: 'var(--color-text)', fontFamily: 'var(--font-heading)', marginBottom: '8px' }}>
+            {step === 1 ? 'Forgot Your Password?' : step === 2 ? 'Security Verification' : 'Password Reset Complete'}
           </h2>
-          <p style={{ fontSize: '14px', color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
+
+          <p style={{ fontSize: '14px', color: 'var(--color-text-muted)', lineHeight: 1.5, maxWidth: '380px', margin: '0 auto' }}>
             {step === 1
-              ? "Enter your email and we'll send a 6-digit OTP code to verify your account."
+              ? "Enter your account email to receive a 6-digit OTP verification code."
               : step === 2
-              ? `Enter the 6-digit OTP code sent to ${email}`
-              : 'Your password has been reset successfully. You can now log in.'}
+              ? `Enter the 6-digit OTP code sent to ${email} and your new password.`
+              : 'Your password has been updated successfully. You can now log in.'}
           </p>
         </div>
 
-        {error && <ErrorMessage title="Verification error" message={error} />}
+        {error && <ErrorMessage title="Error" message={error} />}
 
-        {/* Development Helper Box */}
-        {debugOtp && step === 2 && (
-          <div
-            style={{
-              padding: '12px 16px',
-              borderRadius: 'var(--radius-md)',
-              backgroundColor: 'var(--color-brand-subtle)',
-              border: '1px stroke var(--color-brand-light)',
-              marginBottom: '20px',
-              fontSize: '13px',
-              color: 'var(--color-brand-dark)',
-              textAlign: 'center',
-            }}
-          >
-            <strong>DEV SIMULATION OTP:</strong>{' '}
-            <span style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '4px', color: 'var(--color-brand)' }}>
-              {debugOtp}
-            </span>
-          </div>
-        )}
-
+        {/* STEP 1: Enter Email */}
         {step === 1 && (
           <form onSubmit={handleRequestOtp} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <Input
-              label="Email Address"
+              label="Account Email Address"
               type="email"
               id="forgot-email"
               name="email"
@@ -161,10 +209,11 @@ export const ForgotPasswordPage = () => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              autoFocus
             />
 
             <Button type="submit" variant="primary" size="lg" fullWidth isLoading={loading}>
-              Send OTP Code
+              Send 6-Digit OTP Code
             </Button>
 
             <div style={{ textAlign: 'center', marginTop: '8px' }}>
@@ -186,24 +235,48 @@ export const ForgotPasswordPage = () => {
           </form>
         )}
 
+        {/* STEP 2: 6-Digit OTP Code + New Password */}
         {step === 2 && (
-          <form onSubmit={handleVerifyOtpAndReset} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-            <Input
-              label="6-Digit OTP Code"
-              type="text"
-              id="otp-code"
-              placeholder="123456"
-              maxLength={6}
-              value={otp}
-              onChange={(e) => setOtp(e.target.value)}
-              required
-              style={{
-                fontSize: '20px',
-                fontWeight: 800,
-                letterSpacing: '8px',
-                textAlign: 'center',
-              }}
-            />
+          <form onSubmit={handleVerifyOtpAndReset} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-text)' }}>
+                  6-Digit OTP Code <span style={{ color: 'var(--color-danger)' }}>*</span>
+                </label>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: timer > 60 ? 'var(--color-brand)' : 'var(--color-danger)', fontFamily: 'monospace' }}>
+                  Expires in: {formatTimer(timer)}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                {otpDigits.map((digit, idx) => (
+                  <input
+                    key={idx}
+                    ref={(el) => (inputRefs.current[idx] = el)}
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={1}
+                    value={digit}
+                    onChange={(e) => handleDigitChange(idx, e.target.value)}
+                    onKeyDown={(e) => handleKeyDown(idx, e)}
+                    style={{
+                      width: '52px',
+                      height: '56px',
+                      borderRadius: 'var(--radius-md)',
+                      border: digit ? '2px solid var(--color-brand)' : '1px solid var(--color-border)',
+                      backgroundColor: digit ? 'var(--color-brand-subtle)' : 'var(--color-surface)',
+                      color: 'var(--color-brand-dark)',
+                      fontSize: '22px',
+                      fontWeight: 800,
+                      textAlign: 'center',
+                      outline: 'none',
+                      boxShadow: 'var(--shadow-sm)',
+                      transition: 'all var(--transition-fast)',
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
 
             <PasswordInput
               label="New Password"
@@ -227,51 +300,65 @@ export const ForgotPasswordPage = () => {
               Verify OTP & Reset Password
             </Button>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
               <button
                 type="button"
                 onClick={() => setStep(1)}
                 style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', fontSize: '13px', cursor: 'pointer', fontWeight: 600 }}
               >
-                Change Email
+                ← Change Email
               </button>
               <button
                 type="button"
                 onClick={handleRequestOtp}
-                style={{ background: 'none', border: 'none', color: 'var(--color-brand)', fontSize: '13px', cursor: 'pointer', fontWeight: 700 }}
+                disabled={loading || timer > 540}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--color-brand)',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  opacity: timer > 540 ? 0.5 : 1,
+                }}
               >
-                Resend OTP
+                <RefreshCw size={14} /> Resend OTP Code
               </button>
             </div>
           </form>
         )}
 
+        {/* STEP 3: Success Banner */}
         {step === 3 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', textAlign: 'center' }}>
             <div
               style={{
-                padding: '16px',
-                borderRadius: 'var(--radius-md)',
+                padding: '20px',
+                borderRadius: 'var(--radius-lg)',
                 backgroundColor: 'var(--color-success-bg)',
                 border: '1px solid var(--color-success-border)',
                 color: 'var(--color-success)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '10px',
-                fontWeight: 600,
+                gap: '12px',
+                fontWeight: 700,
+                fontSize: '15px',
               }}
             >
-              <CheckCircle2 size={20} />
-              <span>Your password has been updated successfully.</span>
+              <CheckCircle2 size={24} />
+              <span>Password updated successfully!</span>
             </div>
 
-            <Button variant="primary" fullWidth icon={ArrowLeft} onClick={() => navigate('/login')}>
-              Back to Login
+            <Button variant="primary" size="lg" fullWidth icon={ArrowLeft} onClick={() => navigate('/login')}>
+              Proceed to Login
             </Button>
           </div>
         )}
-      </Card>
+      </div>
     </div>
   );
 };

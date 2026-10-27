@@ -9,14 +9,15 @@ import RegisterPage from '../pages/auth/RegisterPage';
 import ForgotPasswordPage from '../pages/auth/ForgotPasswordPage';
 import ResetPasswordPage from '../pages/auth/ResetPasswordPage';
 
-// Dashboard & Protected Pages
+// App Pages
 import DashboardPage from '../pages/dashboard/DashboardPage';
+import IntegrationsPage from '../pages/integrations/IntegrationsPage';
+
 import { 
   SearchPage, 
   TasksPage, 
   CalendarPage, 
   ActivityPage, 
-  IntegrationsPage, 
   SettingsPage, 
   ProfilePage 
 } from '../pages/placeholders/PlaceholderPages';
