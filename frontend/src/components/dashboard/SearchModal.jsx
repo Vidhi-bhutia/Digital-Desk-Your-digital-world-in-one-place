@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Search, X, Mail, Github, Calendar, CheckSquare, Sparkles } from 'lucide-react';
 import { apiClient } from '../../services/apiClient';
 
-export const SearchModal = ({ isOpen, onClose }) => {
+export const SearchModal = ({ isOpen, onClose, inline = false }) => {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [sections, setSections] = useState({});
+  const [errors, setErrors] = useState({});
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -25,17 +27,18 @@ export const SearchModal = ({ isOpen, onClose }) => {
       return;
     }
 
+    const controller = new AbortController();
     const timer = setTimeout(() => {
       setLoading(true);
-      apiClient(`/search?q=${encodeURIComponent(query)}`)
+      apiClient(`/search?q=${encodeURIComponent(query)}`, { signal: controller.signal })
         .then((res) => {
-          if (res && res.results) setResults(res.results);
+          if (res) { setResults(res.results || []); setSections(res.sections || {}); setErrors({ ...(res.errors || {}), ...(res.unavailable || {}) }); }
         })
-        .catch(() => {})
+        .catch((err) => { if (err.name !== 'AbortError') setErrors({ search: err.message }); })
         .finally(() => setLoading(false));
     }, 200);
 
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(timer); controller.abort(); };
   }, [query]);
 
   if (!isOpen) return null;
@@ -49,9 +52,9 @@ export const SearchModal = ({ isOpen, onClose }) => {
     }
   };
 
-  return (
+  const content = (
     <div
-      style={{
+      style={inline ? { position: 'relative', inset: 'auto', zIndex: 1, background: 'transparent', backdropFilter: 'none', padding: 0, display: 'block' } : {
         position: 'fixed',
         inset: 0,
         zIndex: 999,
@@ -114,7 +117,7 @@ export const SearchModal = ({ isOpen, onClose }) => {
           </button>
         </div>
 
-        <div style={{ padding: '16px 20px', maxHeight: '360px', overflowY: 'auto' }}>
+        <div style={{ padding: '16px 20px', maxHeight: inline ? 'none' : '360px', overflowY: 'auto' }}>
           {!query ? (
             <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', textAlign: 'center', padding: '24px' }}>
               Type to search across all your digital accounts and local desk files.
@@ -129,9 +132,9 @@ export const SearchModal = ({ isOpen, onClose }) => {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {results.map((r, i) => (
+              {Object.entries(sections).filter(([, rows]) => rows?.length).map(([source, rows]) => <section key={source}><h3 style={{ textTransform: 'capitalize' }}>{source}</h3>{rows.map((r, i) => (
                 <div
-                  key={i}
+                  key={r.id || i}
                   style={{
                     padding: '10px 14px',
                     borderRadius: 'var(--radius-md)',
@@ -141,6 +144,7 @@ export const SearchModal = ({ isOpen, onClose }) => {
                     justifyContent: 'space-between',
                     cursor: 'pointer',
                   }}
+                  onClick={() => { if (r.url) window.open(r.url, r.url.startsWith('/') ? '_self' : '_blank', 'noopener,noreferrer'); }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     {getIcon(r.type)}
@@ -154,16 +158,18 @@ export const SearchModal = ({ isOpen, onClose }) => {
                     </div>
                   </div>
                   <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-brand)', backgroundColor: 'var(--color-brand-subtle)', padding: '2px 8px', borderRadius: 'var(--radius-full)' }}>
-                    {r.category}
+                    {r.domain || r.source || r.category}
                   </span>
                 </div>
-              ))}
+              ))}</section>)}
             </div>
           )}
+          {Object.entries(errors).map(([source, message]) => <p key={source} role="status">{source}: {message}</p>)}
         </div>
       </div>
     </div>
   );
+  return content;
 };
 
 export default SearchModal;

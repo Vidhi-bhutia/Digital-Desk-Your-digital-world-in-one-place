@@ -12,10 +12,10 @@ export const MyTasksWidget = ({
   onNavigate,
 }) => {
   const tabs = [
-    { id: 'today', label: 'Today', count: counts.today || 3 },
-    { id: 'upcoming', label: 'Upcoming', count: counts.upcoming || 2 },
-    { id: 'overdue', label: 'Overdue', count: counts.overdue || 2 },
-    { id: 'completed', label: 'Completed', count: counts.completed || 4 },
+    { id: 'today', label: 'Today', count: counts.today || 0 },
+    { id: 'upcoming', label: 'Upcoming', count: counts.upcoming || 0 },
+    { id: 'overdue', label: 'Overdue', count: counts.overdue || 0 },
+    { id: 'completed', label: 'Completed', count: counts.completed || 0 },
   ];
 
   const getPriorityVariant = (priority) => {
@@ -121,6 +121,7 @@ export const MyTasksWidget = ({
 
       {/* Tasks List */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {tasks.length === 0 && <div style={{ color: 'var(--color-text-muted)', padding: '16px 0' }}>No tasks in this view.</div>}
         {tasks.map((task) => (
           <div
             key={task._id || task.id}

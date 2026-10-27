@@ -33,9 +33,9 @@ export const Sidebar = ({ isCollapsed = false, toggleCollapse, onCloseMobile }) 
       title: 'Workspace',
       items: [
         { label: 'Home', path: '/dashboard', icon: Home },
-        { label: 'Search', path: '/search', icon: Search, badge: 'Phase 2' },
-        { label: 'Tasks', path: '/tasks', icon: CheckSquare, badge: 'Phase 2' },
-        { label: 'Calendar', path: '/calendar', icon: Calendar, badge: 'Phase 2' },
+        { label: 'Search', path: '/search', icon: Search },
+        { label: 'Tasks', path: '/tasks', icon: CheckSquare },
+        { label: 'Calendar', path: '/calendar', icon: Calendar },
         { label: 'Activity', path: '/activity', icon: Activity },
         { label: 'Integrations', path: '/integrations', icon: Grid },
       ],

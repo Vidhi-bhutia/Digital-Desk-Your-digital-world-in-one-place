@@ -1,16 +1,8 @@
 import React from 'react';
 import { MapPin, Sun, Droplets, Wind, Sparkles } from 'lucide-react';
 
-export const WeatherWidget = ({ weatherData }) => {
-  const data = weatherData || {
-    location: 'Indore, India',
-    temperature: 28,
-    condition: 'Clear sky',
-    feelsLike: 29,
-    humidity: '32%',
-    windSpeed: '12 km/h',
-    airQuality: 'Good',
-  };
+export const WeatherWidget = ({ weatherData, onLocate }) => {
+  const data = weatherData;
 
   return (
     <div
@@ -30,7 +22,7 @@ export const WeatherWidget = ({ weatherData }) => {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 700, color: '#0F5132' }}>
           <MapPin size={16} />
-          <span>{data.location}</span>
+          <span>{data?.location || 'Weather unavailable'}</span>
         </div>
         <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', cursor: 'pointer' }}>•••</span>
       </div>
@@ -39,10 +31,10 @@ export const WeatherWidget = ({ weatherData }) => {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
         <div>
           <div style={{ fontSize: '42px', fontWeight: 800, lineHeight: 1, fontFamily: 'var(--font-heading)', color: '#0B3B24' }}>
-            {data.temperature}°<span style={{ fontSize: '28px', fontWeight: 600 }}>C</span>
+            {data ? `${data.temperature}${data.unit || '°C'}` : '—'}
           </div>
           <div style={{ fontSize: '14px', fontWeight: 600, color: '#145A32', marginTop: '4px' }}>
-            {data.condition}
+            {data?.condition || 'Choose a location to load weather'}
           </div>
         </div>
 
@@ -66,7 +58,7 @@ export const WeatherWidget = ({ weatherData }) => {
 
       {/* Weather Stats Grid */}
       <div style={{ fontSize: '12px', fontWeight: 600, color: '#145A32', marginBottom: '14px' }}>
-        Feels like {data.feelsLike}°C
+        {data ? `Feels like ${data.feelsLike}${data.unit || '°C'} · ${data.locationSource === 'manual' ? 'Selected city' : 'Device location'}` : <button onClick={onLocate} style={{ color: '#145A32', border: 0, background: 'transparent', cursor: 'pointer' }}>Use my location</button>}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
@@ -74,7 +66,7 @@ export const WeatherWidget = ({ weatherData }) => {
           <Droplets size={14} color="#3B82F6" />
           <div>
             <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Humidity</div>
-            <div style={{ fontSize: '12px', fontWeight: 700 }}>{data.humidity}</div>
+            <div style={{ fontSize: '12px', fontWeight: 700 }}>{data?.humidity || '—'}</div>
           </div>
         </div>
 
@@ -82,7 +74,7 @@ export const WeatherWidget = ({ weatherData }) => {
           <Wind size={14} color="#10B981" />
           <div>
             <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Wind</div>
-            <div style={{ fontSize: '12px', fontWeight: 700 }}>{data.windSpeed}</div>
+            <div style={{ fontSize: '12px', fontWeight: 700 }}>{data?.windSpeed || '—'}</div>
           </div>
         </div>
 
@@ -90,7 +82,7 @@ export const WeatherWidget = ({ weatherData }) => {
           <Sparkles size={14} color="#F59E0B" />
           <div>
             <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Air quality</div>
-            <div style={{ fontSize: '12px', fontWeight: 700 }}>{data.airQuality}</div>
+            <div style={{ fontSize: '12px', fontWeight: 700 }}>{data ? '—' : 'Unavailable'}</div>
           </div>
         </div>
       </div>

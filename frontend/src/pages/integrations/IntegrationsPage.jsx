@@ -3,8 +3,6 @@ import AppShell from '../../components/layout/AppShell';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
-import Input from '../../components/common/Input';
-import Modal from '../../components/common/Modal';
 import MusicPlayerBar from '../../components/layout/MusicPlayerBar';
 import SearchModal from '../../components/dashboard/SearchModal';
 import { apiClient } from '../../services/apiClient';
@@ -25,16 +23,6 @@ export const IntegrationsPage = () => {
   const [loading, setLoading] = useState(true);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
-  // GitHub Connect Modal state
-  const [isGithubModalOpen, setIsGithubModalOpen] = useState(false);
-  const [githubUsername, setGithubUsername] = useState('Vidhi-bhutia');
-  const [githubToken, setGithubToken] = useState('');
-  const [githubLoading, setGithubLoading] = useState(false);
-
-  // Google Connect Modal state
-  const [isGoogleModalOpen, setIsGoogleModalOpen] = useState(false);
-  const [googleEmail, setGoogleEmail] = useState('');
-  const [googleLoading, setGoogleLoading] = useState(false);
 
   const fetchStatus = async () => {
     try {
@@ -42,6 +30,7 @@ export const IntegrationsPage = () => {
       const res = await apiClient('/integrations/status');
       if (res && res.integrations) {
         setIntegrations(res.integrations);
+        return res.integrations;
       }
     } catch (err) {
       console.error(err);
@@ -51,46 +40,19 @@ export const IntegrationsPage = () => {
   };
 
   useEffect(() => {
-    fetchStatus();
+    const finish = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const status = await fetchStatus();
+      const connected = params.get('connected');
+      if (connected === 'github' && status?.github?.connected) toast.success(`GitHub authorized as @${status.github.username}.`);
+      else if (connected === 'google' && (status?.google?.gmail || status?.google?.calendar)) toast.success(`Google services validated: ${[status.google.gmail && 'Gmail', status.google.calendar && 'Calendar'].filter(Boolean).join(', ')}.`);
+      else if (connected) toast.error(`${connected} authorization completed, but provider access could not be validated.`);
+      if (params.has('error')) toast.error(`Connection failed: ${params.get('error').replaceAll('_', ' ')}.`);
+      if (params.has('connected') || params.has('error')) window.history.replaceState({}, '', window.location.pathname);
+    };
+    finish();
   }, []);
-
-  const handleConnectGitHub = async (e) => {
-    e.preventDefault();
-    if (!githubUsername.trim()) return;
-
-    setGithubLoading(true);
-    try {
-      await apiClient('/integrations/github/connect', {
-        method: 'POST',
-        body: { username: githubUsername.trim(), token: githubToken },
-      });
-      toast.success(`Connected GitHub account @${githubUsername.trim()}!`);
-      setIsGithubModalOpen(false);
-      fetchStatus();
-    } catch (err) {
-      toast.error('Failed to connect GitHub account.');
-    } finally {
-      setGithubLoading(false);
-    }
-  };
-
-  const handleConnectGoogle = async (e) => {
-    e.preventDefault();
-    setGoogleLoading(true);
-    try {
-      await apiClient('/integrations/google/connect', {
-        method: 'POST',
-        body: { email: googleEmail },
-      });
-      toast.success('Connected Google Services (Gmail & Calendar)!');
-      setIsGoogleModalOpen(false);
-      fetchStatus();
-    } catch (err) {
-      toast.error('Failed to connect Google account.');
-    } finally {
-      setGoogleLoading(false);
-    }
-  };
+  const startGitHubOAuth = () => { window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/github`; };
 
   return (
     <AppShell pageTitle="Integrations & API Connections" onOpenSearch={() => setIsSearchOpen(true)}>
@@ -133,7 +95,7 @@ export const IntegrationsPage = () => {
           {/* GitHub Integration Card */}
           <Card
             title="GitHub Repositories & Events"
-            action={<Badge variant="success">Connected</Badge>}
+            action={<Badge variant={integrations?.github?.connected ? 'success' : 'warning'}>{integrations?.github?.connected ? 'Connected' : 'Not connected'}</Badge>}
           >
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', marginBottom: '16px' }}>
               <div
@@ -153,23 +115,24 @@ export const IntegrationsPage = () => {
               </div>
               <div>
                 <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)' }}>
-                  @{integrations?.github?.username || 'Vidhi-bhutia'}
+                  {integrations?.github?.username ? `@${integrations.github.username}` : 'No GitHub account connected'}
                 </div>
+                {integrations?.github?.error && <div style={{fontSize:12,color:'var(--color-danger)',marginTop:4}}>{integrations.github.error}</div>}
                 <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
-                  Syncs pull requests, issues, commits, and activity stream directly to your home dashboard timeline.
+                  Validates your GitHub account and loads accessible repositories and recent GitHub events.
                 </div>
               </div>
             </div>
 
             <div style={{ display: 'flex', gap: '10px', marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid var(--color-border-subtle)' }}>
-              <Button variant="primary" size="sm" icon={RefreshCw} onClick={() => setIsGithubModalOpen(true)}>
-                Configure GitHub
+              <Button variant="primary" size="sm" icon={RefreshCw} onClick={startGitHubOAuth}>
+                {integrations?.github?.connected ? 'Reconnect GitHub' : 'Connect with GitHub'}
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 icon={ExternalLink}
-                onClick={() => window.open(`https://github.com/${integrations?.github?.username || 'Vidhi-bhutia'}`, '_blank')}
+                onClick={() => integrations?.github?.username && window.open(`https://github.com/${integrations.github.username}`, '_blank')}
               >
                 View Profile
               </Button>
@@ -179,7 +142,7 @@ export const IntegrationsPage = () => {
           {/* Google Services Integration Card */}
           <Card
             title="Google Workspace (Gmail & Calendar)"
-            action={<Badge variant="success">Connected</Badge>}
+            action={<Badge variant={integrations?.google?.connected ? 'success' : 'warning'}>{integrations?.google?.connected ? 'Connected' : 'Not connected'}</Badge>}
           >
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', marginBottom: '16px' }}>
               <div
@@ -199,16 +162,17 @@ export const IntegrationsPage = () => {
               </div>
               <div>
                 <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)' }}>
-                  {integrations?.google?.email || 'Google Account Active'}
+                  {integrations?.google?.email || 'No Google account connected'}
                 </div>
                 <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
                   Unified inbox unread counter, Google Meet link launcher, and Google Calendar event sync.
                 </div>
+                <div style={{fontSize:12,marginTop:6}}>Gmail: {integrations?.google?.gmail ? 'Available' : 'Unavailable'} · Calendar: {integrations?.google?.calendar ? 'Available' : 'Unavailable'}</div>
               </div>
             </div>
 
             <div style={{ display: 'flex', gap: '10px', marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid var(--color-border-subtle)' }}>
-              <Button variant="primary" size="sm" icon={RefreshCw} onClick={() => setIsGoogleModalOpen(true)}>
+              <Button variant="primary" size="sm" icon={RefreshCw} onClick={() => { window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/google/connect`; }}>
                 Configure Google
               </Button>
               <Button variant="outline" size="sm" icon={ExternalLink} onClick={() => window.open('https://calendar.google.com', '_blank')}>
@@ -220,7 +184,7 @@ export const IntegrationsPage = () => {
           {/* OpenWeather Card */}
           <Card
             title="OpenWeather API"
-            action={<Badge variant="success">Active</Badge>}
+            action={<Badge variant={integrations?.openweather?.configured ? 'success' : 'warning'}>{integrations?.openweather?.configured ? 'Configured' : 'Not configured'}</Badge>}
           >
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', marginBottom: '16px' }}>
               <div
@@ -240,7 +204,7 @@ export const IntegrationsPage = () => {
               </div>
               <div>
                 <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)' }}>
-                  {integrations?.openweather?.city || 'Indore, India'}
+                  {integrations?.openweather?.configured ? 'Device or selected location' : 'OPENWEATHER_API_KEY required'}
                 </div>
                 <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
                   Powers real-time weather forecasts, humidity, wind speeds, and environmental air quality alerts.
@@ -250,7 +214,7 @@ export const IntegrationsPage = () => {
 
             <div style={{ display: 'flex', gap: '10px', marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid var(--color-border-subtle)' }}>
               <Button variant="outline" size="sm" icon={CheckCircle2}>
-                Live API Active
+                {integrations?.openweather?.configured ? 'API configured' : 'Not configured'}
               </Button>
             </div>
           </Card>
@@ -259,65 +223,6 @@ export const IntegrationsPage = () => {
 
       {/* Music Player Bar */}
       <MusicPlayerBar />
-
-      {/* GitHub Modal */}
-      <Modal
-        isOpen={isGithubModalOpen}
-        onClose={() => setIsGithubModalOpen(false)}
-        title="Connect GitHub Account"
-        footer={
-          <>
-            <Button variant="outline" onClick={() => setIsGithubModalOpen(false)}>Cancel</Button>
-            <Button variant="primary" isLoading={githubLoading} onClick={handleConnectGitHub}>Save & Sync</Button>
-          </>
-        }
-      >
-        <form onSubmit={handleConnectGitHub} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <Input
-            label="GitHub Username"
-            placeholder="e.g. Vidhi-bhutia"
-            value={githubUsername}
-            onChange={(e) => setGithubUsername(e.target.value)}
-            required
-          />
-
-          <Input
-            label="Personal Access Token (Optional)"
-            type="password"
-            placeholder="ghp_••••••••••••••••••••"
-            value={githubToken}
-            onChange={(e) => setGithubToken(e.target.value)}
-            helpText="Optional for accessing private repositories and higher rate limits."
-          />
-        </form>
-      </Modal>
-
-      {/* Google Modal */}
-      <Modal
-        isOpen={isGoogleModalOpen}
-        onClose={() => setIsGoogleModalOpen(false)}
-        title="Connect Google Services"
-        footer={
-          <>
-            <Button variant="outline" onClick={() => setIsGoogleModalOpen(false)}>Cancel</Button>
-            <Button variant="primary" isLoading={googleLoading} onClick={handleConnectGoogle}>Connect Account</Button>
-          </>
-        }
-      >
-        <form onSubmit={handleConnectGoogle} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <Input
-            label="Google Account Email"
-            type="email"
-            placeholder="user@gmail.com"
-            value={googleEmail}
-            onChange={(e) => setGoogleEmail(e.target.value)}
-            required
-          />
-          <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', lineHeight: 1.4 }}>
-            Connecting your Google Account enables live sync for Gmail unread inbox counts, Google Calendar meetings, and Google Meet video links.
-          </p>
-        </form>
-      </Modal>
 
       {/* Search Modal */}
       <SearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />

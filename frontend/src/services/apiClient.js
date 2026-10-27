@@ -56,6 +56,7 @@ export const apiClient = async (endpoint, options = {}) => {
     if (error instanceof ApiError) {
       throw error;
     }
+    if (error.name === 'AbortError') throw error;
     // Network or parse error
     throw new ApiError(
       error.message || 'Unable to connect to Digital Desk server.',

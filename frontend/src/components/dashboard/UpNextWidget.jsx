@@ -42,10 +42,11 @@ export const UpNextWidget = ({ events = [], onNavigate }) => {
       </p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', flex: 1 }}>
+        {events.length === 0 && <div style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>No upcoming events.</div>}
         {events.map((item, idx) => (
           <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
             <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text)', minWidth: '60px', marginTop: '2px' }}>
-              {item.time}
+              {item.time || (item.date ? new Date(item.date).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}) : '')}
             </span>
 
             <div

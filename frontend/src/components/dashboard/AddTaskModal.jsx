@@ -6,7 +6,7 @@ import { Plus } from 'lucide-react';
 
 export const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
   const [title, setTitle] = useState('');
-  const [dueText, setDueText] = useState('Today, 4:00 PM');
+  const [dueDate, setDueDate] = useState('');
   const [priority, setPriority] = useState('Medium');
   const [loading, setLoading] = useState(false);
 
@@ -16,7 +16,7 @@ export const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
 
     setLoading(true);
     try {
-      await onAddTask({ title: title.trim(), dueText, priority });
+      await onAddTask({ title: title.trim(), dueDate: dueDate ? new Date(dueDate).toISOString() : null, dueText: dueDate ? new Date(dueDate).toLocaleString() : '', priority });
       setTitle('');
       onClose();
     } finally {
@@ -52,9 +52,9 @@ export const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
 
         <Input
           label="Due Date / Time"
-          placeholder="Today, 4:00 PM"
-          value={dueText}
-          onChange={(e) => setDueText(e.target.value)}
+          type="datetime-local"
+          value={dueDate}
+          onChange={(e) => setDueDate(e.target.value)}
         />
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>

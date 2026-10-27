@@ -21,10 +21,20 @@ export const DashboardPage = () => {
 
   const [activeTaskTab, setActiveTaskTab] = useState('today');
   const [tasks, setTasks] = useState([]);
-  const [taskCounts, setTaskCounts] = useState({ today: 3, upcoming: 2, overdue: 2, completed: 4 });
+  const [taskCounts, setTaskCounts] = useState({ today: 0, upcoming: 0, overdue: 0, completed: 0 });
   const [activities, setActivities] = useState([]);
   const [upNextEvents, setUpNextEvents] = useState([]);
   const [weatherData, setWeatherData] = useState(null);
+  const [weatherError, setWeatherError] = useState('');
+  const [githubCount, setGithubCount] = useState(null);
+  const [unreadCount, setUnreadCount] = useState(null);
+  const [providerErrors, setProviderErrors] = useState({});
+  const [githubActivities, setGithubActivities] = useState([]);
+  const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+  const tomorrowStart = new Date(todayStart); tomorrowStart.setDate(tomorrowStart.getDate()+1);
+  const todaysMeetings = upNextEvents.filter(e => e.type === 'meeting' && new Date(e.date) >= todayStart && new Date(e.date) < tomorrowStart).length;
+  const upcomingEvents = upNextEvents.filter(e => e.date && new Date(e.date) >= new Date()).slice(0,5);
+  const todaysActivities = [...githubActivities, ...activities].filter(a => a.timestamp && new Date(a.timestamp) >= todayStart && new Date(a.timestamp) < tomorrowStart).sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp)).slice(0,6);
 
   const [isAddTaskOpen, setIsAddTaskOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -42,25 +52,27 @@ export const DashboardPage = () => {
     }
   }, [activeTaskTab]);
 
-  // Fetch initial dashboard data
   useEffect(() => {
     fetchTasks(activeTaskTab);
+  }, [fetchTasks, activeTaskTab]);
 
-    // Fetch Activity Feed
-    apiClient('/activity')
-      .then(res => { if (res && res.activities) setActivities(res.activities); })
-      .catch(() => {});
+  useEffect(() => {
+    apiClient('/activity').then(res => { if (res?.activities) setActivities(res.activities); }).catch(e => setProviderErrors(x => ({...x, activity: e.message})));
+    apiClient('/github/summary').then(res => { setGithubCount(res.summary?.activityRecent ?? 0); setGithubActivities(res.activities || []); }).catch(e => { setGithubCount(null); setProviderErrors(x => ({...x, github: e.message})); });
+    apiClient('/gmail/summary').then(res => setUnreadCount(res.summary?.unreadEmails ?? null)).catch(e => { setUnreadCount(null); setProviderErrors(x => ({...x, gmail: e.message})); });
 
     // Fetch Up Next / Calendar events
     apiClient('/calendar/events')
       .then(res => { if (res && res.events) setUpNextEvents(res.events); })
-      .catch(() => {});
+      .catch(e => setProviderErrors(x => ({...x, calendar: e.message})));
 
     // Fetch Weather Data
-    apiClient('/weather')
-      .then(res => { if (res && res.success) setWeatherData(res); })
-      .catch(() => {});
-  }, [fetchTasks, activeTaskTab]);
+    const locationPermissionAsked = sessionStorage.getItem('digitaldesk-location-requested');
+    if (!locationPermissionAsked && navigator.geolocation) {
+      sessionStorage.setItem('digitaldesk-location-requested', 'true');
+      navigator.geolocation.getCurrentPosition(({ coords }) => apiClient(`/weather?lat=${coords.latitude}&lon=${coords.longitude}`).then(res => setWeatherData(res)).catch(e => setWeatherError(e.message)), e => setWeatherError(e.message || 'Location permission denied.'), { timeout: 8000, maximumAge: 600000 });
+    }
+  }, []);
 
   const handleTabChange = (tabId) => {
     setActiveTaskTab(tabId);
@@ -110,10 +122,10 @@ export const DashboardPage = () => {
 
         {/* 4 Summary Cards Row */}
         <QuickSummaryCards
-          meetingsCount={3}
-          emailsCount={12}
-          githubCount={8}
-          tasksCount={taskCounts.today || 5}
+          meetingsCount={todaysMeetings}
+          emailsCount={unreadCount}
+          githubCount={githubCount}
+          tasksCount={taskCounts.today}
           onNavigate={(path) => navigate(path)}
         />
 
@@ -138,11 +150,11 @@ export const DashboardPage = () => {
               }}
             >
               <ActivityTimeline
-                activities={activities}
+                activities={todaysActivities}
                 onNavigate={(path) => navigate(path)}
               />
               <UpNextWidget
-                events={upNextEvents}
+                events={upcomingEvents}
                 onNavigate={(path) => navigate(path)}
               />
             </div>
@@ -161,11 +173,16 @@ export const DashboardPage = () => {
 
           {/* Right Column (Widgets Sidebar) */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            <WeatherWidget weatherData={weatherData} />
-            <MiniCalendarWidget />
+            <WeatherWidget weatherData={weatherData} onLocate={() => {
+              if (!navigator.geolocation) { setWeatherError('Geolocation is unavailable in this browser.'); return; }
+              navigator.geolocation.getCurrentPosition(({ coords }) => apiClient(`/weather?lat=${coords.latitude}&lon=${coords.longitude}`).then(setWeatherData).catch(e => setWeatherError(e.message)), e => setWeatherError(e.message || 'Location permission denied.'), { timeout: 8000, maximumAge: 600000 });
+            }} />
+            {weatherError && <div style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>{weatherError}</div>}
+            <MiniCalendarWidget events={upNextEvents} />
             <QuickLinksWidget onNavigate={(path) => navigate(path)} />
           </div>
         </div>
+        {Object.entries(providerErrors).length > 0 && <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{Object.entries(providerErrors).map(([source, error]) => <div key={source}>{source}: {error}</div>)}</div>}
       </div>
 
       {/* Global Fixed Bottom Music Player Bar */}

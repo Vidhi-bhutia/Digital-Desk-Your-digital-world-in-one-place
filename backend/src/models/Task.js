@@ -13,13 +13,14 @@ const taskSchema = new mongoose.Schema(
       required: [true, 'Task title is required'],
       trim: true,
     },
+    description: { type: String, default: '', maxlength: 5000 },
     dueDate: {
       type: Date,
-      default: Date.now,
+      default: null,
     },
     dueText: {
       type: String,
-      default: 'Today, 4:00 PM',
+      default: '',
     },
     priority: {
       type: String,

@@ -52,10 +52,11 @@ export const ActivityTimeline = ({ activities = [], onNavigate }) => {
       </p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', flex: 1, position: 'relative' }}>
+        {activities.length === 0 && <div style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>No activity recorded today.</div>}
         {activities.map((item, idx) => (
           <div key={item.id || idx} style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
             <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-subtle)', minWidth: '45px' }}>
-              {item.time}
+                {item.time || (item.timestamp ? new Date(item.timestamp).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}) : '')}
             </span>
 
             <div

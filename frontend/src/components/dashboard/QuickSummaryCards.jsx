@@ -2,18 +2,18 @@ import React from 'react';
 import { Calendar, Mail, Github, CheckSquare, ChevronRight } from 'lucide-react';
 
 export const QuickSummaryCards = ({
-  meetingsCount = 3,
-  emailsCount = 12,
-  githubCount = 8,
-  tasksCount = 5,
+  meetingsCount = 0,
+  emailsCount = 0,
+  githubCount = 0,
+  tasksCount = 0,
   onNavigate,
 }) => {
   const cards = [
     {
       id: 'meetings',
       label: 'Meetings Today',
-      count: meetingsCount,
-      subtext: '1 upcoming',
+      count: meetingsCount ?? '—',
+      subtext: 'Today',
       icon: Calendar,
       iconBg: '#ECFDF5',
       iconColor: '#10B981',
@@ -23,8 +23,8 @@ export const QuickSummaryCards = ({
     {
       id: 'emails',
       label: 'Unread Emails',
-      count: emailsCount,
-      subtext: '3 important',
+      count: emailsCount ?? '—',
+      subtext: 'Gmail status in Integrations',
       icon: Mail,
       iconBg: '#FEF2F2',
       iconColor: '#EF4444',
@@ -35,8 +35,8 @@ export const QuickSummaryCards = ({
     {
       id: 'github',
       label: 'GitHub Activity',
-      count: githubCount,
-      subtext: 'Today',
+      count: githubCount ?? '—',
+      subtext: 'Recent',
       icon: Github,
       iconBg: '#F1F5F9',
       iconColor: '#0F172A',
@@ -46,8 +46,8 @@ export const QuickSummaryCards = ({
     {
       id: 'tasks',
       label: 'Tasks',
-      count: tasksCount,
-      subtext: '2 overdue',
+      count: tasksCount ?? 0,
+      subtext: 'Due today',
       icon: CheckSquare,
       iconBg: '#ECFDF5',
       iconColor: '#0F5132',
@@ -134,13 +134,6 @@ export const QuickSummaryCards = ({
                 </div>
               </div>
 
-              {/* Mini Sparkline Bar Chart Graphic */}
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', height: '24px' }}>
-                <div style={{ width: '4px', height: '40%', backgroundColor: card.barColor, borderRadius: '2px', opacity: 0.5 }} />
-                <div style={{ width: '4px', height: '70%', backgroundColor: card.barColor, borderRadius: '2px', opacity: 0.7 }} />
-                <div style={{ width: '4px', height: '100%', backgroundColor: card.barColor, borderRadius: '2px' }} />
-                <div style={{ width: '4px', height: '50%', backgroundColor: card.barColor, borderRadius: '2px', opacity: 0.6 }} />
-              </div>
             </div>
           </div>
         );

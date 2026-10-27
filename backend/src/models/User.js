@@ -35,6 +35,7 @@ const userSchema = new mongoose.Schema(
     googleEmail: { type: String, default: '' },
     googleAccessToken: { type: String, default: '', select: false },
     googleRefreshToken: { type: String, default: '', select: false },
+    musicState: { type: mongoose.Schema.Types.Mixed, default: null },
     
     // Password Reset
     passwordResetTokenHash: { type: String, default: null, select: false },
@@ -76,8 +77,6 @@ userSchema.methods.toAuthUser = function () {
     avatar: this.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(this.name)}&background=0F5132&color=fff`,
     githubUsername: this.githubUsername || '',
     googleEmail: this.googleEmail || '',
-    isGithubConnected: !!this.githubUsername,
-    isGoogleConnected: !!this.googleEmail,
     createdAt: this.createdAt,
     updatedAt: this.updatedAt,
   };

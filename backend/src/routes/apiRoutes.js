@@ -11,6 +11,11 @@ const { getActivityFeed } = require('../controllers/activityController');
 const { searchAll } = require('../controllers/searchController');
 const { getNowPlaying, controlPlayback } = require('../controllers/musicController');
 const { getIntegrationStatus, connectGitHub, connectGoogle, disconnectProvider } = require('../controllers/integrationsController');
+const { githubCallback, googleConnectCallback } = require('../controllers/authController');
+
+// OAuth providers return to these integration callback URLs.
+router.get('/integrations/github/callback', githubCallback);
+router.get('/integrations/google/callback', googleConnectCallback);
 
 // Protect all Phase 2 feature routes
 router.use(requireAuth);
@@ -34,6 +39,7 @@ router.post('/calendar/events', createCalendarEvent);
 // Integrations Data APIs
 router.get('/gmail/summary', getGmailSummary);
 router.get('/github/summary', getGitHubSummary);
+router.get('/github/repositories', getGitHubSummary);
 router.get('/weather', getWeather);
 
 // Dashboard Activity & Universal Search APIs

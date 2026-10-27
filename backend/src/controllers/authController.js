@@ -1,7 +1,7 @@
 const validator = require('validator');
 const User = require('../models/User');
 const { generateToken } = require('../utils/jwt');
-const { generateResetToken, generateOtp, hashToken } = require('../utils/crypto');
+const { generateResetToken, generateOtp, hashToken, seal } = require('../utils/crypto');
 const { sendWelcomeEmail, sendOtpEmail } = require('../services/emailService');
 const config = require('../config/env');
 const logger = require('../utils/logger');
@@ -235,11 +235,13 @@ const resetPassword = async (req, res, next) => {
  * @desc Initiate GitHub OAuth authorization redirect
  */
 const githubAuth = (req, res) => {
+  if (!config.github.clientId || !config.github.clientSecret) return res.status(503).send('GitHub OAuth is not configured on the server.');
+  const state = require('crypto').randomBytes(24).toString('hex');
+  res.cookie('github_connect_state', state, { httpOnly: true, secure: config.nodeEnv === 'production', sameSite: 'lax', maxAge: 10 * 60 * 1000 });
   const clientId = config.github.clientId;
-  const redirectUri = config.github.callbackUrl;
-  const scope = 'user,repo,read:user';
-  
-  const githubUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}`;
+  const redirectUri = config.github.callbackUrl || `${config.backendUrl}/api/integrations/github/callback`;
+  const scope = 'read:user repo';
+  const githubUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${state}`;
   return res.redirect(githubUrl);
 };
 
@@ -249,10 +251,15 @@ const githubAuth = (req, res) => {
  */
 const githubCallback = async (req, res, next) => {
   try {
-    const { code } = req.query;
+    const { code, state } = req.query;
+    if (!config.github.clientId || !config.github.clientSecret) return res.redirect(`${config.frontendUrl}/integrations?error=github_not_configured`);
     if (!code) {
-      return res.redirect(`${config.frontendUrl}/login?error=github_cancelled`);
+      return res.redirect(`${config.frontendUrl}/integrations?error=github_cancelled`);
     }
+    if (!state || state !== req.cookies.github_connect_state) return res.redirect(`${config.frontendUrl}/integrations?error=github_state`);
+    res.clearCookie('github_connect_state');
+    const connectUserId = req.cookies.auth_token && require('../utils/jwt').verifyToken(req.cookies.auth_token)?.id;
+    if (!connectUserId) return res.redirect(`${config.frontendUrl}/login?error=github_auth_required`);
 
     // Exchange code for access token
     const tokenResponse = await fetch('https://github.com/login/oauth/access_token', {
@@ -265,7 +272,7 @@ const githubCallback = async (req, res, next) => {
         client_id: config.github.clientId,
         client_secret: config.github.clientSecret,
         code,
-        redirect_uri: config.github.callbackUrl,
+        redirect_uri: config.github.callbackUrl || `${config.backendUrl}/api/integrations/github/callback`,
       }),
     });
 
@@ -303,32 +310,15 @@ const githubCallback = async (req, res, next) => {
       }
     }
 
-    const targetEmail = (email || `${githubProfile.login}@github.digitaldesk.app`).toLowerCase();
+    const user = await User.findById(connectUserId);
+    if (!user) return res.redirect(`${config.frontendUrl}/login?error=github_account`);
+    user.githubUsername = githubProfile.login;
+    user.githubAccessToken = seal(accessToken);
+    await user.save();
 
-    let user = await User.findOne({ email: targetEmail });
-    if (!user) {
-      user = await User.create({
-        name: githubProfile.name || githubProfile.login,
-        email: targetEmail,
-        passwordHash: await User.hashPassword(generateOtp() + 'GithubAuth!'),
-        avatar: githubProfile.avatar_url,
-        githubUsername: githubProfile.login,
-        githubAccessToken: accessToken,
-      });
-      sendWelcomeEmail(user).catch(() => {});
-    } else {
-      user.githubUsername = githubProfile.login;
-      user.githubAccessToken = accessToken;
-      if (githubProfile.avatar_url) user.avatar = githubProfile.avatar_url;
-      await user.save();
-    }
+    logger.info(`GitHub OAuth connected for Digital Desk user ${user.email} (@${githubProfile.login})`);
 
-    const token = generateToken({ id: user._id });
-    sendAuthCookie(res, token);
-
-    logger.info(`GitHub OAuth login successful for: ${user.email} (@${githubProfile.login})`);
-
-    return res.redirect(`${config.frontendUrl}/dashboard?connected=github`);
+    return res.redirect(`${config.frontendUrl}/integrations?connected=github`);
   } catch (error) {
     next(error);
   }
@@ -339,11 +329,14 @@ const githubCallback = async (req, res, next) => {
  * @desc Initiate Google OAuth authorization redirect
  */
 const googleAuth = (req, res) => {
+  if (!config.google.clientId || !config.google.callbackUrl) return res.status(503).send('Google OAuth is not configured.');
   const clientId = config.google.clientId;
   const redirectUri = config.google.callbackUrl;
-  const scope = encodeURIComponent('openid profile email https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly');
+  const scope = encodeURIComponent('openid profile email https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.events');
   
-  const googleUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scope}&access_type=offline&prompt=consent`;
+  const state = require('crypto').randomBytes(24).toString('hex');
+  res.cookie('google_oauth_state', state, { httpOnly: true, secure: config.nodeEnv === 'production', sameSite: 'lax', maxAge: 10 * 60 * 1000 });
+  const googleUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scope}&access_type=offline&prompt=consent&state=${state}`;
   return res.redirect(googleUrl);
 };
 
@@ -353,10 +346,12 @@ const googleAuth = (req, res) => {
  */
 const googleCallback = async (req, res, next) => {
   try {
-    const { code } = req.query;
+    const { code, state } = req.query;
     if (!code) {
       return res.redirect(`${config.frontendUrl}/login?error=google_cancelled`);
     }
+    if (!state || state !== req.cookies.google_oauth_state) return res.redirect(`${config.frontendUrl}/login?error=google_state`);
+    res.clearCookie('google_oauth_state');
 
     // Exchange code for tokens
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
@@ -396,14 +391,14 @@ const googleCallback = async (req, res, next) => {
         passwordHash: await User.hashPassword(generateOtp() + 'GoogleAuth!'),
         avatar: googleProfile.picture,
         googleEmail: targetEmail,
-        googleAccessToken: accessToken,
-        googleRefreshToken: refreshToken || '',
+        googleAccessToken: seal(accessToken),
+        googleRefreshToken: refreshToken ? seal(refreshToken) : '',
       });
       sendWelcomeEmail(user).catch(() => {});
     } else {
       user.googleEmail = targetEmail;
-      user.googleAccessToken = accessToken;
-      if (refreshToken) user.googleRefreshToken = refreshToken;
+      user.googleAccessToken = seal(accessToken);
+      if (refreshToken) user.googleRefreshToken = seal(refreshToken);
       if (googleProfile.picture) user.avatar = googleProfile.picture;
       await user.save();
     }
@@ -419,6 +414,38 @@ const googleCallback = async (req, res, next) => {
   }
 };
 
+const googleConnectStart = (req, res) => {
+  if (!config.google.clientId || !config.google.clientSecret) return res.status(503).json({ success: false, message: 'Google OAuth is not configured.' });
+  const state = require('crypto').randomBytes(24).toString('hex');
+  res.cookie('google_connect_state', state, { httpOnly: true, secure: config.nodeEnv === 'production', sameSite: 'lax', maxAge: 10 * 60 * 1000 });
+  const scope = encodeURIComponent('openid profile email https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.events');
+  const callbackUrl = config.google.callbackUrl || `${config.backendUrl}/api/integrations/google/callback`;
+  const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${config.google.clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&response_type=code&scope=${scope}&access_type=offline&prompt=consent&state=${state}&include_granted_scopes=true`;
+  res.redirect(url);
+};
+
+const googleConnectCallback = async (req, res, next) => {
+  try {
+    if (!req.query.code || req.query.state !== req.cookies.google_connect_state) return res.redirect(`${config.frontendUrl}/integrations?error=google_state`);
+    res.clearCookie('google_connect_state');
+    const callbackUrl = config.google.callbackUrl || `${config.backendUrl}/api/integrations/google/callback`;
+    const response = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ code: req.query.code, client_id: config.google.clientId, client_secret: config.google.clientSecret, redirect_uri: callbackUrl, grant_type: 'authorization_code' }) });
+    const tokens = await response.json();
+    if (!response.ok || !tokens.access_token) return res.redirect(`${config.frontendUrl}/integrations?error=google_token`);
+    const profileResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', { headers: { Authorization: `Bearer ${tokens.access_token}` } });
+    const profile = await profileResponse.json();
+    const userId = req.cookies.auth_token && require('../utils/jwt').verifyToken(req.cookies.auth_token)?.id;
+    let user = userId ? await User.findById(userId) : null;
+    if (!user && profile.email) user = await User.findOne({ email: profile.email.toLowerCase() });
+    if (!user) return res.redirect(`${config.frontendUrl}/login?error=google_account`);
+    user.googleEmail = profile.email || '';
+    user.googleAccessToken = seal(tokens.access_token);
+    if (tokens.refresh_token) user.googleRefreshToken = seal(tokens.refresh_token);
+    await user.save();
+    res.redirect(`${config.frontendUrl}/integrations?connected=google`);
+  } catch (error) { next(error); }
+};
+
 module.exports = {
   register,
   login,
@@ -430,4 +457,6 @@ module.exports = {
   githubCallback,
   googleAuth,
   googleCallback,
+  googleConnectStart,
+  googleConnectCallback,
 };

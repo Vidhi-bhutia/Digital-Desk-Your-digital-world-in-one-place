@@ -1,45 +1,26 @@
-let musicState = {
-  isPlaying: true,
-  track: {
-    id: '1',
-    title: 'Iktara',
-    artist: 'Amit Trivedi',
-    album: 'Wake Up Sid',
-    duration: '4:12',
-    durationSeconds: 252,
-    currentTime: '1:28',
-    currentTimeSeconds: 88,
-    cover: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=120&q=80',
-    isLiked: true,
-  },
-  volume: 75,
-  isShuffle: false,
-  isRepeat: false,
+const User = require('../models/User');
+
+const defaultState = () => ({ isPlaying: false, track: { id: 'desk-radio-1', title: 'Desk Radio', artist: 'Digital Desk', duration: '', currentTime: '', cover: '', audioUrl: '', isLiked: false }, volume: 65, isShuffle: false, isRepeat: false });
+const getState = (user) => user.musicState || defaultState();
+
+const getNowPlaying = async (req, res) => res.json({ success: true, data: getState(req.user) });
+const controlPlayback = async (req, res, next) => {
+  try {
+    const state = getState(req.user);
+    const { action, volume, isShuffle, isRepeat, track } = req.body;
+    if (action === 'play') state.isPlaying = true;
+    if (action === 'pause') state.isPlaying = false;
+    if (action === 'toggle') state.isPlaying = !state.isPlaying;
+    if (action === 'next' || action === 'previous') state.isPlaying = false;
+    if (action === 'like') state.track.isLiked = !state.track.isLiked;
+    if (Number.isFinite(Number(volume))) state.volume = Math.max(0, Math.min(100, Number(volume)));
+    if (typeof isShuffle === 'boolean') state.isShuffle = isShuffle;
+    if (typeof isRepeat === 'boolean') state.isRepeat = isRepeat;
+    if (track && typeof track.audioUrl === 'string' && /^https:\/\//.test(track.audioUrl)) state.track = { ...state.track, ...track, isPlaying: false };
+    req.user.musicState = state;
+    await req.user.save();
+    res.json({ success: true, data: state });
+  } catch (error) { next(error); }
 };
 
-const getNowPlaying = async (req, res) => {
-  return res.status(200).json({
-    success: true,
-    data: musicState,
-  });
-};
-
-const controlPlayback = async (req, res) => {
-  const { action, volume, isLiked } = req.body;
-
-  if (action === 'play') musicState.isPlaying = true;
-  if (action === 'pause') musicState.isPlaying = false;
-  if (action === 'toggle') musicState.isPlaying = !musicState.isPlaying;
-  if (action === 'like') musicState.track.isLiked = !musicState.track.isLiked;
-  if (volume !== undefined) musicState.volume = volume;
-
-  return res.status(200).json({
-    success: true,
-    data: musicState,
-  });
-};
-
-module.exports = {
-  getNowPlaying,
-  controlPlayback,
-};
+module.exports = { getNowPlaying, controlPlayback };

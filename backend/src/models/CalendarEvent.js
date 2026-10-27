@@ -15,8 +15,7 @@ const calendarEventSchema = new mongoose.Schema(
     },
     time: {
       type: String,
-      required: true,
-      default: '2:00 PM',
+      default: '',
     },
     duration: {
       type: String,
@@ -29,12 +28,13 @@ const calendarEventSchema = new mongoose.Schema(
     },
     meetLink: {
       type: String,
-      default: 'https://meet.google.com/abc-defg-hij',
+      default: '',
     },
     date: {
       type: Date,
-      default: Date.now,
+      default: null,
     },
+    htmlLink: { type: String, default: '' },
   },
   {
     timestamps: true,

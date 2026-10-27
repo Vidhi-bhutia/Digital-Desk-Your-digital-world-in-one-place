@@ -12,7 +12,8 @@ const app = express();
 // Security headers
 app.use(helmet());
 
-// Dynamic CORS configuration (reflects exact requesting origin to avoid multiple values error)
+// CORS compares serialized origins. In development Vite may choose another port
+// or be opened via localhost/127.0.0.1; production stays on explicit origins.
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5174',
@@ -20,25 +21,34 @@ const allowedOrigins = [
   'http://127.0.0.1:5174',
 ];
 
-if (config.frontendUrl) {
-  config.frontendUrl.split(',').forEach(url => {
-    const trimmed = url.trim();
-    if (trimmed && !allowedOrigins.includes(trimmed)) {
-      allowedOrigins.push(trimmed);
-    }
-  });
-}
+const normalizeOrigin = (value) => {
+  try { return new URL(value).origin; } catch { return null; }
+};
+const configuredOrigins = (config.frontendUrl || '').split(',').map(normalizeOrigin).filter(Boolean);
+const isAllowedOrigin = (origin) => {
+  const normalized = normalizeOrigin(origin);
+  if (!normalized) return false;
+  if (allowedOrigins.includes(normalized) || configuredOrigins.includes(normalized)) return true;
+  if (config.nodeEnv !== 'production') {
+    try {
+      const url = new URL(normalized);
+      return ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname) && ['http:', 'https:'].includes(url.protocol);
+    } catch { return false; }
+  }
+  return false;
+};
 
 app.use(
   cors({
     origin: (origin, callback) => {
       // Allow requests with no origin (e.g. mobile apps, curl, Postman)
       if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin) || allowedOrigins.some(o => origin.startsWith(o))) {
+      if (isAllowedOrigin(origin)) {
         return callback(null, true);
       }
-      // Allow dynamically in development mode
-      return callback(null, true);
+      const error = new Error('Origin is not allowed by CORS');
+      error.status = 403;
+      return callback(error);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],

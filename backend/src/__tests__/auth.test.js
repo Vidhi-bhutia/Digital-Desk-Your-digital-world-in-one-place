@@ -3,9 +3,13 @@ const assert = require('node:assert/strict');
 const app = require('../app');
 const { connectDB, disconnectDB } = require('../config/db');
 const User = require('../models/User');
+const { MongoMemoryServer } = require('mongodb-memory-server');
+let memoryServer;
 
 test.before(async () => {
   process.env.NODE_ENV = 'test';
+  memoryServer = await MongoMemoryServer.create();
+  process.env.TEST_MONGO_URI = memoryServer.getUri();
   await connectDB();
   await User.deleteMany({});
 });
@@ -13,6 +17,7 @@ test.before(async () => {
 test.after(async () => {
   await User.deleteMany({});
   await disconnectDB();
+  if (memoryServer) await memoryServer.stop();
 });
 
 test('User registration, duplicate check & authentication flow', async (t) => {

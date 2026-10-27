@@ -19,13 +19,13 @@ export const MusicPlayerBar = () => {
   const [isLiked, setIsLiked] = useState(true);
   const [volume, setVolume] = useState(75);
   const [isMuted, setIsMuted] = useState(false);
+  const [isShuffle, setIsShuffle] = useState(false);
+  const [isRepeat, setIsRepeat] = useState(false);
   const [track, setTrack] = useState({
-    title: 'Iktara',
-    artist: 'Amit Trivedi',
-    duration: '4:12',
-    currentTime: '1:28',
-    cover: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=120&q=80',
+    title: 'Desk Radio', artist: 'Digital Desk', duration: '', currentTime: '', cover: '', audioUrl: '',
   });
+  const audioRef = React.useRef(null);
+  const [audioError, setAudioError] = useState('');
 
   useEffect(() => {
     // Fetch initial playback state from API
@@ -35,14 +35,24 @@ export const MusicPlayerBar = () => {
           setIsPlaying(res.data.isPlaying);
           setIsLiked(res.data.track.isLiked);
           setVolume(res.data.volume);
+          setIsShuffle(!!res.data.isShuffle);
+          setIsRepeat(!!res.data.isRepeat);
+          if (res.data.track) setTrack(res.data.track);
         }
       })
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    if (!track.audioUrl || !audioRef.current) return;
+    audioRef.current.volume = (isMuted ? 0 : volume) / 100;
+    if (isPlaying) audioRef.current.play().catch(() => { setIsPlaying(false); setAudioError('Playback blocked or stream unavailable.'); });
+    else audioRef.current.pause();
+  }, [isPlaying, volume, isMuted, track.audioUrl]);
+
   const togglePlay = () => {
-    setIsPlaying(!isPlaying);
-    apiClient('/music/control', { method: 'POST', body: { action: 'toggle' } }).catch(() => {});
+    if (!track.audioUrl) { setAudioError('No audio stream configured. Add a licensed HTTPS stream URL to use Desk Radio.'); return; }
+    apiClient('/music/control', { method: 'POST', body: { action: isPlaying ? 'pause' : 'play' } }).then(r => setIsPlaying(r.data.isPlaying)).catch(() => {});
   };
 
   const toggleLike = () => {
@@ -72,7 +82,8 @@ export const MusicPlayerBar = () => {
     >
       {/* Left: Track Details */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: '220px' }}>
-        <img
+        <audio ref={audioRef} src={track.audioUrl || undefined} onError={() => { setAudioError('Audio stream unavailable.'); setIsPlaying(false); }} onEnded={() => setIsPlaying(false)} />
+        {track.cover ? <img
           src={track.cover}
           alt={track.title}
           style={{
@@ -82,7 +93,7 @@ export const MusicPlayerBar = () => {
             objectFit: 'cover',
             boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
           }}
-        />
+        /> : <div style={{ width: 48, height: 48, borderRadius: 8, background: '#155b3a' }} />}
         <div>
           <div style={{ fontSize: '14px', fontWeight: 700, color: '#FFFFFF' }}>
             {track.title}
@@ -118,10 +129,10 @@ export const MusicPlayerBar = () => {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255, 255, 255, 0.6)' }}>
+          <button aria-label="Shuffle" onClick={() => setIsShuffle(v => { apiClient('/music/control', {method:'POST', body:{isShuffle:!v}}).catch(()=>{}); return !v; })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: isShuffle ? '#10B981' : 'rgba(255, 255, 255, 0.6)' }}>
             <Shuffle size={16} />
           </button>
-          <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#FFFFFF' }}>
+          <button aria-label="Previous track" onClick={() => { setIsPlaying(false); apiClient('/music/control',{method:'POST',body:{action:'previous'}}).catch(()=>{}); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#FFFFFF' }}>
             <SkipBack size={18} fill="#FFFFFF" />
           </button>
           <button
@@ -142,10 +153,10 @@ export const MusicPlayerBar = () => {
           >
             {isPlaying ? <Pause size={18} fill="#072015" /> : <Play size={18} fill="#072015" style={{ marginLeft: '2px' }} />}
           </button>
-          <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#FFFFFF' }}>
+          <button aria-label="Next track" onClick={() => { setIsPlaying(false); apiClient('/music/control',{method:'POST',body:{action:'next'}}).catch(()=>{}); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#FFFFFF' }}>
             <SkipForward size={18} fill="#FFFFFF" />
           </button>
-          <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255, 255, 255, 0.6)' }}>
+          <button aria-label="Repeat" onClick={() => setIsRepeat(v => { apiClient('/music/control', {method:'POST', body:{isRepeat:!v}}).catch(()=>{}); return !v; })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: isRepeat ? '#10B981' : 'rgba(255, 255, 255, 0.6)' }}>
             <Repeat size={16} />
           </button>
         </div>
@@ -153,7 +164,7 @@ export const MusicPlayerBar = () => {
         {/* Scrubber Bar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%' }}>
           <span style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.6)', fontFamily: 'monospace' }}>
-            {track.currentTime}
+            {audioError || track.currentTime}
           </span>
           <div
             style={{

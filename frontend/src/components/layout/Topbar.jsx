@@ -176,7 +176,7 @@ export const Topbar = ({ onOpenMobileNav, onOpenSearch, pageTitle = 'Dashboard' 
             <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-text)' }}>
               {user?.name || 'User'}
             </span>
-            <Badge variant="brand" size="sm">Phase 2 Dashboard</Badge>
+            <Badge variant="brand" size="sm">Digital Desk</Badge>
           </div>
         </div>
       </div>
