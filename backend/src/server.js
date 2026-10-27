@@ -1,44 +1,26 @@
+const dns = require('dns');
+const app = require('./app');
+const config = require('./config/env');
+const { connectDB, disconnectDB } = require('./config/db');
+const logger = require('./utils/logger');
 
-import dns from 'node:dns';
+if (process.env.DNS_SERVERS) {
+  dns.setServers(process.env.DNS_SERVERS.split(',').map(value => value.trim()).filter(Boolean));
+} else if (config.nodeEnv === 'development') {
+  dns.setServers(['8.8.8.8', '1.1.1.1']);
+}
 
-// Configure DNS before connecting to MongoDB
-dns.setServers(['8.8.8.8', '1.1.1.1']);
-
-import app from './app.js';
-import config from './config/env.js';
-import { connectDB, disconnectDB } from './config/db.js';
-import logger from './utils/logger.js';
-
-const PORT = config.PORT || 5000;
-
-async function startServer() {
+const startServer = async () => {
   try {
     await connectDB();
-
-    const server = app.listen(PORT, () => {
-      logger.info(`Digital Desk backend running on port ${PORT}`);
-    });
-
-    const shutdown = async (signal) => {
-      logger.info(`${signal} received. Shutting down server...`);
-
-      server.close(async () => {
-        try {
-          await disconnectDB();
-          process.exit(0);
-        } catch (error) {
-          logger.error('Error during shutdown:', error);
-          process.exit(1);
-        }
-      });
-    };
-
-    process.on('SIGINT', () => shutdown('SIGINT'));
-    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    const server = app.listen(config.port, () => logger.info(`Digital Desk API listening on ${config.port}`));
+    const shutdown = () => server.close(async () => { await disconnectDB(); process.exit(0); });
+    process.on('SIGTERM', shutdown);
+    process.on('SIGINT', shutdown);
   } catch (error) {
-    logger.error('Failed to start server:', error);
+    logger.error('Failed to start server; persistent database connection is required:', error);
     process.exit(1);
   }
-}
+};
 
 startServer();

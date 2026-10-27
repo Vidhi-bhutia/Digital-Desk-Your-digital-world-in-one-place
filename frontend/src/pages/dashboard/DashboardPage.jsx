@@ -57,8 +57,7 @@ export const DashboardPage = () => {
   }, [fetchTasks, activeTaskTab]);
 
   useEffect(() => {
-    apiClient('/activity').then(res => { if (res?.activities) setActivities(res.activities); }).catch(e => setProviderErrors(x => ({...x, activity: e.message})));
-    apiClient('/github/summary').then(res => { setGithubCount(res.summary?.activityRecent ?? 0); setGithubActivities(res.activities || []); }).catch(e => { setGithubCount(null); setProviderErrors(x => ({...x, github: e.message})); });
+    apiClient('/activity').then(res => { if (res?.activities) { setActivities(res.activities); setGithubActivities(res.activities.filter(a=>a.type==='github')); setGithubCount(res.summary?.githubRecent7d ?? 0); } }).catch(e => setProviderErrors(x => ({...x, activity: e.message})));
     apiClient('/gmail/summary').then(res => setUnreadCount(res.summary?.unreadEmails ?? null)).catch(e => { setUnreadCount(null); setProviderErrors(x => ({...x, gmail: e.message})); });
 
     // Fetch Up Next / Calendar events
