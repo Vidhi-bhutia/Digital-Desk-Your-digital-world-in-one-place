@@ -10,33 +10,18 @@ const githubFetch = async (user, path) => {
 const getGitHubActivity = async (user) => {
   const [repos, events] = await Promise.all([
     githubFetch(user, '/user/repos?sort=updated&per_page=10'),
-    githubFetch(user, `/users/${encodeURIComponent(user.githubUsername)}/events?per_page=30`),
+    githubFetch(user, '/user/events?per_page=100'),
   ]);
-  const commitGroups = await Promise.all(repos.map(async repo => {
-    const repoPath = repo.full_name.split('/').map(encodeURIComponent).join('/');
-    const commits = await githubFetch(user, `/repos/${repoPath}/commits?author=${encodeURIComponent(user.githubUsername)}&per_page=10`);
-    return commits.map(commit => ({
-      id: `commit-${commit.sha}`,
-      type: 'github',
-      title: `Commit · ${repo.full_name}`,
-      detail: (commit.commit?.message || '').split('\n')[0],
-      timestamp: commit.commit?.author?.date || commit.commit?.committer?.date,
-      url: commit.html_url,
-      action: 'commit',
-    }));
-  }));
   const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
-  const commitActivities = commitGroups.flat().filter(item => item.timestamp && new Date(item.timestamp).getTime() >= cutoff);
-  const eventActivities = events.filter(event => event.type !== 'PushEvent' && new Date(event.created_at).getTime() >= cutoff).map(event => ({
+  const activities = events.filter(event => new Date(event.created_at).getTime() >= cutoff).map(event => ({
     id: `event-${event.id}`,
     type: 'github',
     title: `${event.type.replace('Event', '')} · ${event.repo?.name || 'GitHub'}`,
-    detail: event.payload?.pull_request?.title || event.payload?.issue?.title || event.payload?.ref || '',
+    detail: event.payload?.comment?.body || event.payload?.pull_request?.title || event.payload?.issue?.title || event.payload?.ref || '',
     timestamp: event.created_at,
-    url: `https://github.com/${event.repo?.name || ''}`,
+    url: event.payload?.comment?.html_url || event.payload?.pull_request?.html_url || event.payload?.issue?.html_url || `https://github.com/${event.repo?.name || ''}`,
     action: event.type,
   }));
-  const activities = [...commitActivities, ...eventActivities].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
   const recentCutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
   return { repos, activities, activityRecent: activities.filter(item => new Date(item.timestamp).getTime() >= recentCutoff).length };
 };

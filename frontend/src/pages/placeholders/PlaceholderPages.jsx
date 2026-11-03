@@ -5,6 +5,12 @@ import SearchModal from '../../components/dashboard/SearchModal';
 import MusicPlayerBar from '../../components/layout/MusicPlayerBar';
 import { apiClient } from '../../services/apiClient';
 import Button from '../../components/common/Button';
+import AddTaskModal from '../../components/dashboard/AddTaskModal';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
+import { IntegrationsPage as IntegrationSettings } from '../integrations/IntegrationsPage';
+import { useToast } from '../../context/ToastContext';
 
 const box = { background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: 20, marginBottom: 14 };
 
@@ -13,14 +19,11 @@ export const SearchPage = () => <AppShell pageTitle="Search"><SearchModal isOpen
 export const TasksPage = () => {
   const [tasks, setTasks] = useState([]);
   const [counts, setCounts] = useState({ total: 0, today: 0, upcoming: 0, overdue: 0, completed: 0 });
-  const [title, setTitle] = useState('');
-  const [dueDate, setDueDate] = useState('');
-  const [priority, setPriority] = useState('Medium');
+  const [isAddOpen, setIsAddOpen] = useState(false);
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const load = async (quiet = false) => {
     if (!quiet) setLoading(true);
     try { const r = await apiClient(`/tasks?filter=${filter}`); setTasks(r.tasks || []); setCounts(r.counts || counts); setError(''); }
@@ -28,15 +31,7 @@ export const TasksPage = () => {
     finally { setLoading(false); }
   };
   useEffect(() => { load(); }, [filter]);
-  const create = async e => {
-    e.preventDefault(); if (!title.trim()) return;
-    setSaving(true);
-    try {
-      await apiClient('/tasks', { method: 'POST', body: { title: title.trim(), dueDate: dueDate ? new Date(dueDate).toISOString() : null, dueText: dueDate ? new Date(dueDate).toLocaleString() : '', priority } });
-      setTitle(''); setDueDate(''); setPriority('Medium'); await load(true);
-    } catch (e) { setError(e.message || 'Could not create task.'); }
-    finally { setSaving(false); }
-  };
+  const create = async task => { await apiClient('/tasks', { method: 'POST', body: task }); await load(true); };
   const update = async (task, patch) => {
     try { await apiClient(`/tasks/${task._id}`, { method: 'PUT', body: patch }); await load(true); }
     catch (e) { setError(e.message || 'Could not update task.'); }
@@ -55,15 +50,7 @@ export const TasksPage = () => {
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>{[['Open',Math.max(0,counts.total-counts.completed)],['Due today',counts.today],['Overdue',counts.overdue]].map(([label,value])=><div key={label} style={{ minWidth: 98, padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'var(--color-surface)', border: '1px solid var(--color-border)' }}><div style={{ fontSize: 21, fontWeight: 800, color: 'var(--color-text)' }}>{value}</div><div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{label}</div></div>)}</div>
       </section>
 
-      <form onSubmit={create} style={{ ...box, margin: 0, padding: 20 }}>
-        <label htmlFor="new-task-title" style={{ display: 'block', fontSize: 14, fontWeight: 700, color: 'var(--color-text)', marginBottom: 12 }}>Add a task</label>
-        <div className="task-create-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(220px,1fr) 190px 140px auto', gap: 10, alignItems: 'center' }}>
-          <input id="new-task-title" autoComplete="off" value={title} onChange={e=>setTitle(e.target.value)} placeholder="What needs to get done?" style={inputStyle} />
-          <input aria-label="Due date" type="datetime-local" value={dueDate} onChange={e=>setDueDate(e.target.value)} style={inputStyle} />
-          <select aria-label="Priority" value={priority} onChange={e=>setPriority(e.target.value)} style={inputStyle}>{['Low','Medium','High'].map(p=><option key={p}>{p}</option>)}</select>
-          <Button type="submit" icon={Plus} isLoading={saving} disabled={!title.trim()}>Add task</Button>
-        </div>
-      </form>
+      <section style={{ ...box, margin: 0, padding: 20, display:'flex', justifyContent:'space-between', alignItems:'center' }}><div><b style={{ color:'var(--color-text)' }}>Keep your next action clear</b><p style={{ margin:'4px 0 0', color:'var(--color-text-muted)', fontSize:13 }}>Add a task with a deadline, or mark it as having no deadline.</p></div><Button icon={Plus} onClick={() => setIsAddOpen(true)}>Add task</Button></section>
 
       <section style={{ ...box, margin: 0, padding: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, justifyContent: 'space-between', flexWrap: 'wrap' }}>
@@ -74,7 +61,7 @@ export const TasksPage = () => {
 
       {error && <div role="alert" style={{ padding: 14, borderRadius: 'var(--radius-md)', color: 'var(--color-danger)', background: 'var(--color-danger-bg)', border: '1px solid var(--color-danger-border)' }}>{error}</div>}
       {loading ? <div style={{ ...box, margin: 0, textAlign: 'center', color: 'var(--color-text-muted)' }}>Loading your tasks…</div> : visibleTasks.length ? <div style={{ display:'flex',flexDirection:'column',gap:10 }}>{visibleTasks.map(task=><TaskRow key={task._id} task={task} onUpdate={update} onDelete={remove} inputStyle={inputStyle}/>)}</div> : <div style={{ ...box, margin: 0, padding: '44px 20px', textAlign: 'center' }}><div style={{ width:48,height:48,borderRadius:'50%',margin:'0 auto 12px',display:'grid',placeItems:'center',background:'var(--color-brand-subtle)',color:'var(--color-brand)' }}><ListTodo size={22}/></div><h3 style={{margin:'0 0 6px',font:'700 17px var(--font-heading)',color:'var(--color-text)'}}>{search?'No matching tasks':'Nothing on this list yet'}</h3><p style={{margin:0,color:'var(--color-text-muted)',fontSize:13}}>{search?'Try another search.':'Add a task above to get started.'}</p></div>}
-    </div><MusicPlayerBar />
+    </div><AddTaskModal isOpen={isAddOpen} onClose={() => setIsAddOpen(false)} onAddTask={create}/><MusicPlayerBar />
   </AppShell>;
 };
 
@@ -91,11 +78,10 @@ const TaskRow = ({ task, onUpdate, onDelete, inputStyle }) => {
 };
 
 export const CalendarPage = () => {
-  const [events, setEvents] = useState([]); const [title, setTitle] = useState(''); const [date, setDate] = useState(new Date().toISOString().slice(0,10)); const [error, setError] = useState('');
-  const load = () => apiClient('/calendar/events').then(r => setEvents(r.events || [])).catch(e => setError(e.message));
+  const [events, setEvents] = useState([]); const [error, setError] = useState('');
+  const load = () => apiClient('/calendar/events').then(r => setEvents((r.events || []).filter(event => event.provider === 'google'))).catch(e => setError(e.message));
   useEffect(() => { load(); }, []);
-  const create = async e => { e.preventDefault(); try { await apiClient('/calendar/events', { method: 'POST', body: { title, date: new Date(`${date}T12:00:00`).toISOString() } }); setTitle(''); load(); } catch (e) { setError(e.message); } };
-  return <AppShell pageTitle="Calendar"><form onSubmit={create} style={box}><input aria-label="Event title" value={title} onChange={e=>setTitle(e.target.value)} placeholder="Event title" required/> <input type="date" value={date} onChange={e=>setDate(e.target.value)}/><button>Create event</button></form>{error && <p>{error}</p>}{events.map(e=><div key={e._id} style={box}><b>{e.title}</b><div>{e.date ? new Date(e.date).toLocaleString() : 'Date not set'}</div>{e.meetLink && <a href={e.meetLink} target="_blank" rel="noreferrer">Join meeting</a>}</div>)}{!events.length && <p>No calendar events. Connect Google in Integrations to sync your calendar.</p>}<MusicPlayerBar /></AppShell>;
+  return <AppShell pageTitle="Calendar"><div style={{maxWidth:900,margin:'0 auto'}}><section style={box}><h2>Google Calendar events</h2><p style={{marginTop:6,color:'var(--color-text-muted'}}>Events are read from your connected Google Calendar. Creating events is not available here, so nothing will be saved only inside Digital Desk by mistake.</p></section>{error && <p role="alert" style={{color:'var(--color-danger)'}}>{error}</p>}{events.map(e=><div key={e._id||e.googleId} style={box}><b>{e.title}</b><div>{e.date ? new Date(e.date).toLocaleString() : 'Date not set'}</div>{e.meetLink && <a href={e.meetLink} target="_blank" rel="noreferrer">Join meeting</a>}{e.htmlLink && <a style={{marginLeft:12}} href={e.htmlLink} target="_blank" rel="noreferrer">Open in Google Calendar</a>}</div>)}{!events.length && <p>No calendar events found. Connect Google in Settings to sync your calendar.</p>}</div><MusicPlayerBar /></AppShell>;
 };
 
 export const ActivityPage = () => {
@@ -106,5 +92,28 @@ export const ActivityPage = () => {
   return <AppShell pageTitle="Activity"><button onClick={() => load(true)}><RefreshCw size={16}/> Refresh from GitHub</button>{updatedAt && <small style={{marginLeft:10,color:'var(--color-text-muted)'}}>Updated {updatedAt.toLocaleTimeString()}</small>}{error && <p role="alert">{error}</p>}{items.map(a=><div key={a.id} style={box}><small>{a.type} · {a.timestamp && new Date(a.timestamp).toLocaleString()}</small><h3>{a.title}</h3><p>{a.detail}</p>{a.url && <a href={a.url} target={a.url.startsWith('/') ? undefined : '_blank'} rel="noreferrer">Open item</a>}</div>)}{!items.length && !error && <p>No activity found in the available recent activity window.</p>}<MusicPlayerBar /></AppShell>;
 };
 
-export const SettingsPage = () => <AppShell pageTitle="Settings"><p>Theme preferences are available from the top bar. Manage connected accounts in Integrations.</p></AppShell>;
-export const ProfilePage = () => <AppShell pageTitle="Profile"><p>Profile details are managed by your Digital Desk account.</p></AppShell>;
+export const GmailPage = () => {
+  const [data, setData] = useState(null); const [error, setError] = useState('');
+  useEffect(() => { apiClient('/gmail/summary').then(setData).catch(e=>setError(e.message)); }, []);
+  return <AppShell pageTitle="Gmail"><div style={{maxWidth:900,margin:'0 auto'}}><section style={box}><h2>Unread messages</h2><p style={{color:'var(--color-text-muted)',marginTop:6}}>{data?.summary?.unreadEmails ?? '—'} unread</p>{error&&<p role="alert" style={{color:'var(--color-danger)'}}>{error} · <a href="/settings">Manage connections</a></p>}</section>{(data?.latestEmails||[]).map(m=><a key={m.id} href={m.url} target="_blank" rel="noreferrer" style={{...box,display:'block',textDecoration:'none',color:'var(--color-text)'}}><b>{m.subject}</b><div style={{fontSize:13,color:'var(--color-text-muted)'}}>{m.sender} · {m.snippet}</div></a>)}{!error&&!data?.latestEmails?.length&&<p style={{color:'var(--color-text-muted)'}}>No unread messages to show.</p>}</div><MusicPlayerBar /></AppShell>;
+};
+
+export const GitHubPage = () => {
+  const [data,setData]=useState(null);const [error,setError]=useState('');
+  useEffect(()=>{apiClient('/github/summary').then(setData).catch(e=>setError(e.message));},[]);
+  return <AppShell pageTitle="GitHub"><div style={{maxWidth:900,margin:'0 auto'}}>{error&&<p role="alert" style={{...box,color:'var(--color-danger)'}}>{error} · <a href="/settings">Manage connections</a></p>}{(data?.activities||[]).map(item=><a key={item.id} href={item.url} target="_blank" rel="noreferrer" style={{...box,display:'block',textDecoration:'none',color:'var(--color-text)'}}><small>{item.timestamp&&new Date(item.timestamp).toLocaleString()}</small><h3>{item.title}</h3><p>{item.detail}</p></a>)}{!error&&!data?.activities?.length&&<p style={{color:'var(--color-text-muted)'}}>No recent GitHub activity.</p>}</div><MusicPlayerBar /></AppShell>;
+};
+
+export const SettingsPage = () => { const {isDark,toggleTheme}=useTheme(); return <AppShell pageTitle="Settings"><div style={{maxWidth:1100,margin:'0 auto',display:'flex',flexDirection:'column',gap:22}}><section style={box}><h2 style={{fontSize:22,marginBottom:6}}>Appearance</h2><p style={{color:'var(--color-text-muted)',marginBottom:14}}>Choose the display theme for your workspace.</p><Button variant="outline" onClick={toggleTheme}>Switch to {isDark?'light':'dark'} theme</Button></section><section><h2 style={{fontSize:22,marginBottom:6}}>Connected services</h2><p style={{color:'var(--color-text-muted)',marginBottom:16}}>Connect or revoke Google and GitHub access, and check weather configuration.</p><IntegrationSettings embedded /></section></div></AppShell>; };
+
+export const ProfilePage = () => {
+  const { user, updateUser } = useAuth(); const toast=useToast();
+  const [profile,setProfile]=useState({name:user?.name||'',email:user?.email||'',phone:user?.phone||'',avatar:user?.avatar||''});
+  const [currentPassword,setCurrentPassword]=useState(''); const [profileSaving,setProfileSaving]=useState(false); const [profileError,setProfileError]=useState('');
+  const [passwords,setPasswords]=useState({currentPassword:'',newPassword:'',confirmPassword:''}); const [passwordSaving,setPasswordSaving]=useState(false); const [passwordError,setPasswordError]=useState('');
+  const handleImage=e=>{const file=e.target.files?.[0];if(!file)return;if(!file.type.startsWith('image/')||file.size>3*1024*1024){setProfileError('Choose an image smaller than 3 MB.');return;}const reader=new FileReader();reader.onload=()=>setProfile(p=>({...p,avatar:reader.result}));reader.readAsDataURL(file);};
+  const saveProfile=async e=>{e.preventDefault();setProfileSaving(true);setProfileError('');try{await updateUser({...profile,currentPassword});setCurrentPassword('');toast.success('Profile updated.');}catch(error){setProfileError(error.message);}finally{setProfileSaving(false);}};
+  const savePassword=async e=>{e.preventDefault();setPasswordError('');if(passwords.newPassword!==passwords.confirmPassword){setPasswordError('New passwords do not match.');return;}setPasswordSaving(true);try{await apiClient('/auth/password',{method:'PUT',body:{currentPassword:passwords.currentPassword,newPassword:passwords.newPassword}});setPasswords({currentPassword:'',newPassword:'',confirmPassword:''});toast.success('Password changed.');}catch(error){setPasswordError(error.message);}finally{setPasswordSaving(false);}};
+  const field={width:'100%',height:44,padding:'0 12px',border:'1px solid var(--color-border)',borderRadius:10,background:'var(--color-bg)',color:'var(--color-text)',font:'14px var(--font-sans)'};
+  return <AppShell pageTitle="Profile"><div style={{maxWidth:820,margin:'0 auto',display:'flex',flexDirection:'column',gap:20,paddingBottom:24}}><form style={box} onSubmit={saveProfile}><h2 style={{fontSize:22,marginBottom:18}}>Personal information</h2><div style={{display:'flex',alignItems:'center',gap:18,marginBottom:20}}><img src={profile.avatar||`https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name||'User')}&background=0F5132&color=fff`} alt="Profile avatar" style={{width:76,height:76,borderRadius:'50%',objectFit:'cover'}}/><label style={{color:'var(--color-brand)',fontWeight:700,cursor:'pointer'}}>Upload profile photo<input type="file" accept="image/*" onChange={handleImage} style={{display:'block',maxWidth:220,marginTop:8,color:'var(--color-text-muted)',fontWeight:400}}/></label></div><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:14}}><label style={{color:'var(--color-text-muted)',fontSize:13}}>Full name<input style={{...field,display:'block',marginTop:6}} value={profile.name} onChange={e=>setProfile(p=>({...p,name:e.target.value}))} required/></label><label style={{color:'var(--color-text-muted)',fontSize:13}}>Email address<input style={{...field,display:'block',marginTop:6}} type="email" value={profile.email} onChange={e=>setProfile(p=>({...p,email:e.target.value}))} required/></label><label style={{color:'var(--color-text-muted)',fontSize:13}}>Phone number<input style={{...field,display:'block',marginTop:6}} type="tel" placeholder="Add a phone number" value={profile.phone} onChange={e=>setProfile(p=>({...p,phone:e.target.value}))}/></label>{profile.email!==user?.email&&<label style={{color:'var(--color-text-muted)',fontSize:13}}>Current password (required to change email)<input style={{...field,display:'block',marginTop:6}} type="password" value={currentPassword} onChange={e=>setCurrentPassword(e.target.value)} required/></label>}</div>{profileError&&<p role="alert" style={{color:'var(--color-danger)',marginTop:12}}>{profileError}</p>}<div style={{marginTop:18}}><Button type="submit" isLoading={profileSaving}>Save profile</Button></div></form><form style={box} onSubmit={savePassword}><h2 style={{fontSize:22,marginBottom:18}}>Change password</h2><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:14}}>{[['Current password','currentPassword'],['New password','newPassword'],['Confirm new password','confirmPassword']].map(([label,key])=><label key={key} style={{color:'var(--color-text-muted)',fontSize:13}}>{label}<input required minLength={key==='currentPassword'?1:8} type="password" autoComplete={key==='currentPassword'?'current-password':'new-password'} style={{...field,display:'block',marginTop:6}} value={passwords[key]} onChange={e=>setPasswords(p=>({...p,[key]:e.target.value}))}/></label>)}</div>{passwordError&&<p role="alert" style={{color:'var(--color-danger)',marginTop:12}}>{passwordError}</p>}<div style={{marginTop:18}}><Button type="submit" isLoading={passwordSaving}>Update password</Button></div></form></div></AppShell>;
+};

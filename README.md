@@ -18,7 +18,7 @@ Never commit `.env` files. OAuth and provider secrets belong only in the backend
 - **OpenWeather:** Set `OPENWEATHER_API_KEY`. Browser geolocation is requested by the dashboard; alternatively call the weather API with a manually selected `city`.
 - **Web search:** Set a server side `TAVILY_API_KEY`. Without it, search returns personal results and reports web search as unavailable.
 - **Database:** Set `MONGO_URI` to a persistent MongoDB instance. The server never silently falls back to volatile storage. Tests use an isolated MongoMemoryServer fixture.
-- **Desk Radio:** Playback requires a licensed HTTPS audio stream URL configured as a user track. The player will not claim to play when there is no stream.
+- **Desk Radio:** Includes “Emerald Therapy” by Jason Shaw / Audionautix under CC BY 3.0. Attribution appears in the player. Set `RADIO_AUDIO_URL`, `RADIO_TRACK_TITLE`, and `RADIO_TRACK_ARTIST` on the backend to use another licensed HTTPS track. [Track and license details](https://commons.wikimedia.org/wiki/File:Audionautix-com-ccby-emeraldtherapy.mp3).
 
 ## API and functionality notes
 

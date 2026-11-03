@@ -11,7 +11,6 @@ import ResetPasswordPage from '../pages/auth/ResetPasswordPage';
 
 // App Pages
 import DashboardPage from '../pages/dashboard/DashboardPage';
-import IntegrationsPage from '../pages/integrations/IntegrationsPage';
 
 import { 
   SearchPage, 
@@ -19,7 +18,7 @@ import {
   CalendarPage, 
   ActivityPage, 
   SettingsPage, 
-  ProfilePage 
+  ProfilePage,
 } from '../pages/placeholders/PlaceholderPages';
 
 export const AppRoutes = () => {
@@ -100,14 +99,7 @@ export const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
-      <Route
-        path="/integrations"
-        element={
-          <ProtectedRoute>
-            <IntegrationsPage />
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/integrations" element={<ProtectedRoute><Navigate to="/settings" replace /></ProtectedRoute>} />
       <Route
         path="/settings"
         element={

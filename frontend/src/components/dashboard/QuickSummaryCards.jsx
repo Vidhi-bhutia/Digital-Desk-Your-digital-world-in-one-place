@@ -30,7 +30,7 @@ export const QuickSummaryCards = ({
       iconColor: '#EF4444',
       barColor: '#EF4444',
       isGmail: true,
-      path: '/integrations',
+      path: 'https://mail.google.com',
     },
     {
       id: 'github',
@@ -41,7 +41,7 @@ export const QuickSummaryCards = ({
       iconBg: '#F1F5F9',
       iconColor: '#0F172A',
       barColor: '#10B981',
-      path: '/integrations',
+      path: 'https://github.com',
     },
     {
       id: 'tasks',
@@ -69,7 +69,7 @@ export const QuickSummaryCards = ({
         return (
           <div
             key={card.id}
-            onClick={() => onNavigate && onNavigate(card.path)}
+            onClick={() => card.path.startsWith('http') ? window.open(card.path, '_blank', 'noopener,noreferrer') : onNavigate && onNavigate(card.path)}
             style={{
               backgroundColor: 'var(--color-surface)',
               border: '1px solid var(--color-border)',

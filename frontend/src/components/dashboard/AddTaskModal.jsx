@@ -3,22 +3,31 @@ import Modal from '../common/Modal';
 import Input from '../common/Input';
 import Button from '../common/Button';
 import { Plus } from 'lucide-react';
+import { useToast } from '../../context/ToastContext';
 
 export const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
   const [title, setTitle] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [priority, setPriority] = useState('Medium');
+  const [noDeadline, setNoDeadline] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [deadlineError, setDeadlineError] = useState('');
+  const toast = useToast();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!title.trim()) return;
+    if (!noDeadline && !dueDate) { setDeadlineError('Choose a deadline or select “This task has no deadline”.'); return; }
 
     setLoading(true);
     try {
-      await onAddTask({ title: title.trim(), dueDate: dueDate ? new Date(dueDate).toISOString() : null, dueText: dueDate ? new Date(dueDate).toLocaleString() : '', priority });
+      await onAddTask({ title: title.trim(), dueDate: !noDeadline && dueDate ? new Date(dueDate).toISOString() : null, noDeadline, dueText: !noDeadline && dueDate ? new Date(dueDate).toLocaleString() : '', priority, description: '' });
       setTitle('');
+      setDueDate(''); setPriority('Medium'); setNoDeadline(false);
+      setDeadlineError('');
       onClose();
+    } catch (error) {
+      toast.error(error.message || 'Task could not be created.');
     } finally {
       setLoading(false);
     }
@@ -34,7 +43,7 @@ export const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button variant="primary" icon={Plus} isLoading={loading} onClick={handleSubmit}>
+          <Button variant="primary" icon={Plus} isLoading={loading} disabled={!title.trim() || (!noDeadline && !dueDate)} onClick={handleSubmit}>
             Create Task
           </Button>
         </>
@@ -50,12 +59,7 @@ export const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
           autoFocus
         />
 
-        <Input
-          label="Due Date / Time"
-          type="datetime-local"
-          value={dueDate}
-          onChange={(e) => setDueDate(e.target.value)}
-        />
+        <div><Input label="Deadline" type="datetime-local" value={dueDate} onChange={(e) => { setDueDate(e.target.value); setDeadlineError(''); }} disabled={noDeadline} required={!noDeadline} /><label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8, color: 'var(--color-text-muted)', fontSize: 13 }}><input type="checkbox" checked={noDeadline} onChange={e => { setNoDeadline(e.target.checked); setDeadlineError(''); if (e.target.checked) setDueDate(''); }} /> This task has no deadline</label>{deadlineError && <div role="alert" style={{color:'var(--color-danger)',fontSize:12,marginTop:6}}>{deadlineError}</div>}</div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
           <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)' }}>
@@ -66,6 +70,7 @@ export const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
               <button
                 key={p}
                 type="button"
+                aria-pressed={priority === p}
                 onClick={() => setPriority(p)}
                 style={{
                   flex: 1,

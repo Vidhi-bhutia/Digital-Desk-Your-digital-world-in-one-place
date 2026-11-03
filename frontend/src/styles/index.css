@@ -171,6 +171,16 @@ h1, h2, h3, h4, h5, h6 {
 .search-spin { animation:spin .8s linear infinite; }
 @media (max-width: 760px) { .search-sections-grid { grid-template-columns:1fr; } }
 
+.dd-music-bar > div { min-width: 0; }
+@media (max-width: 760px) {
+  .dd-main-content { padding: 20px 14px 160px !important; }
+  .dd-music-bar { gap: 8px; padding: 10px 12px !important; }
+  .dd-music-bar > div:first-of-type { flex: 1 1 45%; min-width: 145px !important; }
+  .dd-music-bar > div:nth-of-type(2) { flex: 1 1 100%; order: 3; max-width: none !important; }
+  .dd-music-bar > div:last-of-type { flex: 1 1 auto; min-width: 120px !important; }
+  .dd-music-bar input[type="range"] { width: 58px !important; }
+}
+
 /* Scrollbar Styling */
 ::-webkit-scrollbar {
   width: 8px;

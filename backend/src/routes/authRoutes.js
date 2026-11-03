@@ -5,6 +5,8 @@ const {
   login,
   logout,
   getMe,
+  updateProfile,
+  changePassword,
   forgotPassword,
   resetPassword,
   githubAuth,
@@ -36,5 +38,7 @@ router.post('/logout', logout);
 
 // Protected auth route
 router.get('/me', requireAuth, getMe);
+router.put('/profile', requireAuth, updateProfile);
+router.put('/password', requireAuth, changePassword);
 
 module.exports = router;

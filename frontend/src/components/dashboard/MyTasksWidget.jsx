@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, ArrowRight, Check, MoreHorizontal } from 'lucide-react';
+import { Plus, ArrowRight, Check } from 'lucide-react';
 import Badge from '../common/Badge';
 
 export const MyTasksWidget = ({
@@ -12,6 +12,7 @@ export const MyTasksWidget = ({
   onNavigate,
 }) => {
   const tabs = [
+    { id: 'open', label: 'All open', count: counts.total - counts.completed },
     { id: 'today', label: 'Today', count: counts.today || 0 },
     { id: 'upcoming', label: 'Upcoming', count: counts.upcoming || 0 },
     { id: 'overdue', label: 'Overdue', count: counts.overdue || 0 },
@@ -171,24 +172,13 @@ export const MyTasksWidget = ({
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
               <span style={{ fontSize: '12px', color: task.priority === 'High' ? 'var(--color-danger)' : 'var(--color-text-muted)', fontWeight: 500 }}>
-                {task.dueText}
+                {task.dueDate ? (task.dueText || new Date(task.dueDate).toLocaleString()) : 'No deadline'}
               </span>
 
               <Badge variant={getPriorityVariant(task.priority)} size="sm">
                 {task.priority}
               </Badge>
 
-              <button
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: 'var(--color-text-subtle)',
-                  padding: '2px',
-                }}
-              >
-                <MoreHorizontal size={18} />
-              </button>
             </div>
           </div>
         ))}

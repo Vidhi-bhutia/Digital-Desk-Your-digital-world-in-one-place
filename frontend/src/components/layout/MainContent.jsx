@@ -6,7 +6,7 @@ export const MainContent = ({ children }) => {
       className="dd-main-content animate-fade-in"
       style={{
         flex: 1,
-        padding: '32px 28px',
+        padding: '32px 28px 112px',
         overflowY: 'auto',
         maxWidth: '1400px',
         width: '100%',

@@ -32,6 +32,13 @@ const config = {
     callbackUrl: process.env.GOOGLE_CALLBACK_URL || `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/integrations/google/callback`,
   },
   openWeatherApiKey: process.env.OPENWEATHER_API_KEY,
+  radio: {
+    audioUrl: process.env.RADIO_AUDIO_URL || 'https://upload.wikimedia.org/wikipedia/commons/b/b9/Audionautix-com-ccby-emeraldtherapy.mp3',
+    title: process.env.RADIO_TRACK_TITLE || 'Emerald Therapy',
+    artist: process.env.RADIO_TRACK_ARTIST || 'Jason Shaw / Audionautix',
+    licenseUrl: 'https://creativecommons.org/licenses/by/3.0/',
+    attributionUrl: 'https://commons.wikimedia.org/wiki/File:Audionautix-com-ccby-emeraldtherapy.mp3',
+  },
 };
 
 module.exports = config;

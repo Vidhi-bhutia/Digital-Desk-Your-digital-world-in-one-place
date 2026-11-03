@@ -18,7 +18,11 @@ import {
   ExternalLink
 } from 'lucide-react';
 
-export const IntegrationsPage = () => {
+const IntegrationShell = ({ embedded, isSearchOpen, onOpenSearch, onCloseSearch, children }) => embedded
+  ? <>{children}</>
+  : <AppShell pageTitle="Integrations & API Connections" onOpenSearch={onOpenSearch}>{children}<MusicPlayerBar /><SearchModal isOpen={isSearchOpen} onClose={onCloseSearch} /></AppShell>;
+
+export const IntegrationsPage = ({ embedded = false }) => {
   const toast = useToast();
   const [integrations, setIntegrations] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -69,7 +73,7 @@ export const IntegrationsPage = () => {
   };
 
   return (
-    <AppShell pageTitle="Integrations & API Connections" onOpenSearch={() => setIsSearchOpen(true)}>
+    <IntegrationShell embedded={embedded} isSearchOpen={isSearchOpen} onOpenSearch={() => setIsSearchOpen(true)} onCloseSearch={() => setIsSearchOpen(false)}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '28px', maxWidth: '1200px', paddingBottom: '80px' }}>
         {/* Header Hero Banner */}
         <div
@@ -237,16 +241,11 @@ export const IntegrationsPage = () => {
         </div>
       </div>
 
-      {/* Music Player Bar */}
-      <MusicPlayerBar />
-
-      {/* Search Modal */}
-      <SearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
       <Modal isOpen={!!removalProvider} onClose={() => !busyProvider && setRemovalProvider('')} title={`Remove ${removalProvider === 'github' ? 'GitHub' : 'Google'} completely`} footer={<><Button variant="outline" disabled={!!busyProvider} onClick={() => setRemovalProvider('')}>Cancel</Button><Button variant="danger" isLoading={!!busyProvider} onClick={() => disconnect(removalProvider, true)}>Revoke and remove</Button></>}>
         <p style={{ color: 'var(--color-text)', lineHeight: 1.6 }}>Digital Desk will ask {removalProvider === 'github' ? 'GitHub' : 'Google'} to revoke its authorization first. After provider confirmation, it deletes the saved credentials and disconnects this account.</p>
         <p style={{ color: 'var(--color-text-muted)', lineHeight: 1.6, marginTop: 12 }}>Your Digital Desk account and tasks are retained. Integration credentials and access are removed. Previously synced calendar records, if any, may remain in Digital Desk.</p>
       </Modal>
-    </AppShell>
+    </IntegrationShell>
   );
 };
 

@@ -134,6 +134,48 @@ const getMe = async (req, res) => {
   });
 };
 
+const updateProfile = async (req, res, next) => {
+  try {
+    const { name, email, phone, avatar, currentPassword } = req.body;
+    if (name !== undefined) {
+      if (typeof name !== 'string' || !name.trim()) return res.status(400).json({ success: false, message: 'Name is required.' });
+      req.user.name = name.trim();
+    }
+    if (email !== undefined && email.toLowerCase().trim() !== req.user.email) {
+      if (!validator.isEmail(email)) return res.status(400).json({ success: false, message: 'Enter a valid email address.' });
+      if (!currentPassword) return res.status(400).json({ success: false, message: 'Enter your current password to change your email.' });
+      const account = await User.findById(req.user._id).select('+passwordHash');
+      if (!await account.comparePassword(currentPassword)) return res.status(401).json({ success: false, message: 'Current password is incorrect.' });
+      const normalizedEmail = email.toLowerCase().trim();
+      if (await User.exists({ email: normalizedEmail, _id: { $ne: req.user._id } })) return res.status(409).json({ success: false, message: 'That email address is already in use.' });
+      req.user.email = normalizedEmail;
+    }
+    if (phone !== undefined) {
+      const normalizedPhone = String(phone).trim();
+      if (normalizedPhone && !/^\+?[0-9\s().-]{7,24}$/.test(normalizedPhone)) return res.status(400).json({ success: false, message: 'Enter a valid phone number.' });
+      req.user.phone = normalizedPhone;
+    }
+    if (avatar !== undefined) {
+      if (avatar && (!/^data:image\/(png|jpeg|webp|gif);base64,/.test(avatar) || avatar.length > 4_000_000)) return res.status(400).json({ success: false, message: 'Upload a supported image smaller than 3 MB.' });
+      req.user.avatar = avatar || '';
+    }
+    await req.user.save();
+    res.json({ success: true, user: req.user.toAuthUser() });
+  } catch (error) { next(error); }
+};
+
+const changePassword = async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (typeof newPassword !== 'string' || newPassword.length < 8) return res.status(400).json({ success: false, message: 'New password must contain at least 8 characters.' });
+    const account = await User.findById(req.user._id).select('+passwordHash');
+    if (!await account.comparePassword(currentPassword || '')) return res.status(401).json({ success: false, message: 'Current password is incorrect.' });
+    account.passwordHash = await User.hashPassword(newPassword);
+    await account.save();
+    res.json({ success: true, message: 'Password changed successfully.' });
+  } catch (error) { next(error); }
+};
+
 /**
  * @route POST /api/auth/forgot-password
  */
@@ -252,11 +294,11 @@ const githubAuth = (req, res) => {
 const githubCallback = async (req, res, next) => {
   try {
     const { code, state } = req.query;
-    if (!config.github.clientId || !config.github.clientSecret) return res.redirect(`${config.frontendUrl}/integrations?error=github_not_configured`);
+    if (!config.github.clientId || !config.github.clientSecret) return res.redirect(`${config.frontendUrl}/settings?error=github_not_configured`);
     if (!code) {
-      return res.redirect(`${config.frontendUrl}/integrations?error=github_cancelled`);
+      return res.redirect(`${config.frontendUrl}/settings?error=github_cancelled`);
     }
-    if (!state || state !== req.cookies.github_connect_state) return res.redirect(`${config.frontendUrl}/integrations?error=github_state`);
+    if (!state || state !== req.cookies.github_connect_state) return res.redirect(`${config.frontendUrl}/settings?error=github_state`);
     res.clearCookie('github_connect_state');
     const connectUserId = req.cookies.auth_token && require('../utils/jwt').verifyToken(req.cookies.auth_token)?.id;
     if (!connectUserId) return res.redirect(`${config.frontendUrl}/login?error=github_auth_required`);
@@ -318,7 +360,7 @@ const githubCallback = async (req, res, next) => {
 
     logger.info(`GitHub OAuth connected for Digital Desk user ${user.email} (@${githubProfile.login})`);
 
-    return res.redirect(`${config.frontendUrl}/integrations?connected=github`);
+    return res.redirect(`${config.frontendUrl}/settings?connected=github`);
   } catch (error) {
     next(error);
   }
@@ -426,12 +468,12 @@ const googleConnectStart = (req, res) => {
 
 const googleConnectCallback = async (req, res, next) => {
   try {
-    if (!req.query.code || req.query.state !== req.cookies.google_connect_state) return res.redirect(`${config.frontendUrl}/integrations?error=google_state`);
+    if (!req.query.code || req.query.state !== req.cookies.google_connect_state) return res.redirect(`${config.frontendUrl}/settings?error=google_state`);
     res.clearCookie('google_connect_state');
     const callbackUrl = config.google.callbackUrl || `${config.backendUrl}/api/integrations/google/callback`;
     const response = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ code: req.query.code, client_id: config.google.clientId, client_secret: config.google.clientSecret, redirect_uri: callbackUrl, grant_type: 'authorization_code' }) });
     const tokens = await response.json();
-    if (!response.ok || !tokens.access_token) return res.redirect(`${config.frontendUrl}/integrations?error=google_token`);
+    if (!response.ok || !tokens.access_token) return res.redirect(`${config.frontendUrl}/settings?error=google_token`);
     const profileResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', { headers: { Authorization: `Bearer ${tokens.access_token}` } });
     const profile = await profileResponse.json();
     const userId = req.cookies.auth_token && require('../utils/jwt').verifyToken(req.cookies.auth_token)?.id;
@@ -441,7 +483,7 @@ const googleConnectCallback = async (req, res, next) => {
     user.googleAccessToken = seal(tokens.access_token);
     if (tokens.refresh_token) user.googleRefreshToken = seal(tokens.refresh_token);
     await user.save();
-    res.redirect(`${config.frontendUrl}/integrations?connected=google`);
+    res.redirect(`${config.frontendUrl}/settings?connected=google`);
   } catch (error) { next(error); }
 };
 
@@ -450,6 +492,8 @@ module.exports = {
   login,
   logout,
   getMe,
+  updateProfile,
+  changePassword,
   forgotPassword,
   resetPassword,
   githubAuth,

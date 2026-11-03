@@ -4,10 +4,8 @@ import AppShell from '../../components/layout/AppShell';
 import HeroHeader from '../../components/dashboard/HeroHeader';
 import QuickSummaryCards from '../../components/dashboard/QuickSummaryCards';
 import ActivityTimeline from '../../components/dashboard/ActivityTimeline';
-import UpNextWidget from '../../components/dashboard/UpNextWidget';
 import MyTasksWidget from '../../components/dashboard/MyTasksWidget';
 import WeatherWidget from '../../components/dashboard/WeatherWidget';
-import MiniCalendarWidget from '../../components/dashboard/MiniCalendarWidget';
 import QuickLinksWidget from '../../components/dashboard/QuickLinksWidget';
 import AddTaskModal from '../../components/dashboard/AddTaskModal';
 import SearchModal from '../../components/dashboard/SearchModal';
@@ -19,12 +17,11 @@ export const DashboardPage = () => {
   const navigate = useNavigate();
   const toast = useToast();
 
-  const [activeTaskTab, setActiveTaskTab] = useState('today');
+  const [activeTaskTab, setActiveTaskTab] = useState('open');
   const [tasks, setTasks] = useState([]);
   const [taskCounts, setTaskCounts] = useState({ today: 0, upcoming: 0, overdue: 0, completed: 0 });
   const [activities, setActivities] = useState([]);
   const [activityStatus, setActivityStatus] = useState('loading');
-  const [calendarError, setCalendarError] = useState('');
   const [weatherLoading, setWeatherLoading] = useState(false);
   const [upNextEvents, setUpNextEvents] = useState([]);
   const [weatherData, setWeatherData] = useState(null);
@@ -32,12 +29,10 @@ export const DashboardPage = () => {
   const [githubCount, setGithubCount] = useState(null);
   const [unreadCount, setUnreadCount] = useState(null);
   const [providerErrors, setProviderErrors] = useState({});
-  const [githubActivities, setGithubActivities] = useState([]);
   const todayStart = new Date(); todayStart.setHours(0,0,0,0);
   const tomorrowStart = new Date(todayStart); tomorrowStart.setDate(tomorrowStart.getDate()+1);
   const todaysMeetings = upNextEvents.filter(e => e.type === 'meeting' && new Date(e.date) >= todayStart && new Date(e.date) < tomorrowStart).length;
-  const upcomingEvents = upNextEvents.filter(e => e.date && new Date(e.date) >= new Date()).slice(0,5);
-  const todaysActivities = [...githubActivities, ...activities].filter(a => a.timestamp && new Date(a.timestamp) >= todayStart && new Date(a.timestamp) < tomorrowStart).sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp)).slice(0,6);
+  const todaysActivities = activities.filter(a => a.timestamp && new Date(a.timestamp) >= todayStart && new Date(a.timestamp) < tomorrowStart).sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp)).slice(0,6);
 
   const [isAddTaskOpen, setIsAddTaskOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -60,22 +55,23 @@ export const DashboardPage = () => {
   }, [fetchTasks, activeTaskTab]);
 
   useEffect(() => {
-    apiClient('/activity').then(res => { if (res?.activities) { setActivities(res.activities); setGithubActivities(res.activities.filter(a=>a.type==='github')); setGithubCount(res.summary?.githubRecent7d ?? 0); setActivityStatus('ready'); } }).catch(e => { setProviderErrors(x => ({...x, activity: e.message})); setActivityStatus('error'); });
+    apiClient('/activity').then(res => { if (res?.activities) { setActivities(res.activities); setGithubCount(res.summary?.githubRecent7d ?? 0); setActivityStatus('ready'); } }).catch(e => { setProviderErrors(x => ({...x, activity: e.message})); setActivityStatus('error'); });
     apiClient('/gmail/summary').then(res => setUnreadCount(res.summary?.unreadEmails ?? null)).catch(e => { setUnreadCount(null); setProviderErrors(x => ({...x, gmail: e.message})); });
 
     // Fetch Up Next / Calendar events
     apiClient(`/calendar/events?from=${encodeURIComponent(todayStart.toISOString())}&to=${encodeURIComponent(new Date(Date.now() + 90 * 86400000).toISOString())}`)
-      .then(res => { if (res && res.events) { setUpNextEvents(res.events); if (res.providerError) setCalendarError(res.providerError); } })
-      .catch(e => { setCalendarError(e.message); setProviderErrors(x => ({...x, calendar: e.message})); });
+      .then(res => { if (res && res.events) setUpNextEvents(res.events); })
+      .catch(e => setProviderErrors(x => ({...x, calendar: e.message})));
 
     // Fetch Weather Data
-    const locationPermissionAsked = sessionStorage.getItem('digitaldesk-location-requested');
-    if (!locationPermissionAsked && navigator.geolocation) {
-      sessionStorage.setItem('digitaldesk-location-requested', 'true');
-      setWeatherLoading(true);
-      navigator.geolocation.getCurrentPosition(({ coords }) => apiClient(`/weather?lat=${coords.latitude}&lon=${coords.longitude}`).then(res => setWeatherData(res)).catch(e => setWeatherError(e.message)).finally(() => setWeatherLoading(false)), e => { setWeatherError(e.code === 1 ? 'Location permission was denied. Search for a city instead.' : e.message || 'Unable to get your location. Search for a city instead.'); setWeatherLoading(false); }, { timeout: 8000, maximumAge: 600000 });
-    }
+    requestWeatherLocation();
   }, []);
+
+  const requestWeatherLocation = () => {
+    if (!navigator.geolocation) { setWeatherError('Location is not available in this browser.'); return; }
+    setWeatherLoading(true); setWeatherError('');
+    navigator.geolocation.getCurrentPosition(({ coords }) => apiClient(`/weather?lat=${coords.latitude}&lon=${coords.longitude}`).then(setWeatherData).catch(e => setWeatherError(e.message)).finally(() => setWeatherLoading(false)), e => { setWeatherError(e.code === 1 ? 'Location access is blocked. Allow location in your browser settings, then retry.' : e.message || 'Unable to get your location.'); setWeatherLoading(false); }, { timeout: 10000, maximumAge: 600000 });
+  };
 
   const handleTabChange = (tabId) => {
     setActiveTaskTab(tabId);
@@ -106,7 +102,7 @@ export const DashboardPage = () => {
       fetchTasks(activeTaskTab);
       toast.success('New task created!');
     } catch (err) {
-      toast.error('Failed to create task.');
+      throw err;
     }
   };
 
@@ -156,12 +152,7 @@ export const DashboardPage = () => {
                 activities={todaysActivities}
                 status={activityStatus}
                 error={providerErrors.activity}
-                onRetry={() => { setActivityStatus('loading'); apiClient('/activity').then(res => { setActivities(res.activities || []); setGithubActivities((res.activities || []).filter(a=>a.type==='github')); setActivityStatus('ready'); }).catch(e => { setProviderErrors(x => ({...x, activity:e.message})); setActivityStatus('error'); }); }}
-                onNavigate={(path) => navigate(path)}
-              />
-              <UpNextWidget
-                events={upcomingEvents}
-                error={calendarError}
+                onRetry={() => { setActivityStatus('loading'); apiClient('/activity').then(res => { setActivities(res.activities || []); setActivityStatus('ready'); }).catch(e => { setProviderErrors(x => ({...x, activity:e.message})); setActivityStatus('error'); }); }}
                 onNavigate={(path) => navigate(path)}
               />
             </div>
@@ -180,12 +171,7 @@ export const DashboardPage = () => {
 
           {/* Right Column (Widgets Sidebar) */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            <WeatherWidget weatherData={weatherData} loading={weatherLoading} error={weatherError} onSearchCity={async city => { setWeatherLoading(true); setWeatherError(''); try { const res = await apiClient(`/weather?city=${encodeURIComponent(city)}`); setWeatherData(res); } catch (e) { setWeatherError(e.message); } finally { setWeatherLoading(false); } }} onLocate={() => {
-              if (!navigator.geolocation) { setWeatherError('Geolocation is unavailable in this browser.'); return; }
-              setWeatherLoading(true); setWeatherError('');
-              navigator.geolocation.getCurrentPosition(({ coords }) => apiClient(`/weather?lat=${coords.latitude}&lon=${coords.longitude}`).then(setWeatherData).catch(e => setWeatherError(e.message)).finally(() => setWeatherLoading(false)), e => { setWeatherError(e.code === 1 ? 'Location permission was denied. Search for a city instead.' : e.message || 'Unable to get your location.'); setWeatherLoading(false); }, { timeout: 8000, maximumAge: 600000 });
-            }} />
-            <MiniCalendarWidget events={upNextEvents} />
+            <WeatherWidget weatherData={weatherData} loading={weatherLoading} error={weatherError} onLocate={requestWeatherLocation} />
             <QuickLinksWidget onNavigate={(path) => navigate(path)} />
           </div>
         </div>

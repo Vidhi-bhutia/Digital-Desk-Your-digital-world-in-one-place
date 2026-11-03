@@ -13,14 +13,15 @@ const getTasks = async (req, res, next) => {
       { category: { $regex: req.query.q, $options: 'i' } },
     ];
     if (filter === 'completed') query.completed = true;
+    if (filter === 'open') query.completed = false;
     if (filter === 'today') Object.assign(query, { completed: false, dueDate: { $gte: start, $lt: end } });
-    if (filter === 'upcoming') Object.assign(query, { completed: false, dueDate: { $gte: end } });
+    if (filter === 'upcoming') Object.assign(query, { completed: false, $or: [{ dueDate: { $gte: end } }, { dueDate: null }, { dueDate: { $exists: false } }] });
     if (filter === 'overdue') Object.assign(query, { completed: false, dueDate: { $lt: start } });
     const [tasks, total, today, upcoming, overdue, completed] = await Promise.all([
       Task.find(query).sort({ dueDate: 1, priority: 1, createdAt: -1 }).limit(Math.min(Number(req.query.limit) || 100, 200)),
       Task.countDocuments({ userId: req.user._id }),
       Task.countDocuments({ userId: req.user._id, completed: false, dueDate: { $gte: start, $lt: end } }),
-      Task.countDocuments({ userId: req.user._id, completed: false, dueDate: { $gte: end } }),
+      Task.countDocuments({ userId: req.user._id, completed: false, $or: [{ dueDate: { $gte: end } }, { dueDate: null }, { dueDate: { $exists: false } }] }),
       Task.countDocuments({ userId: req.user._id, completed: false, dueDate: { $exists: true, $lt: start } }),
       Task.countDocuments({ userId: req.user._id, completed: true }),
     ]);
@@ -30,8 +31,10 @@ const getTasks = async (req, res, next) => {
 
 const createTask = async (req, res, next) => {
   try {
-    const { title, dueDate, dueText, priority, category, description } = req.body;
+    const { title, dueDate, noDeadline, dueText, priority, category, description } = req.body;
     if (typeof title !== 'string' || !title.trim()) return res.status(400).json({ success: false, message: 'Task title is required.' });
+    if (!dueDate && noDeadline !== true) return res.status(400).json({ success: false, message: 'Choose a deadline or explicitly mark the task as having no deadline.' });
+    if (dueDate && Number.isNaN(new Date(dueDate).getTime())) return res.status(400).json({ success: false, message: 'Task deadline is invalid.' });
     const task = await Task.create({ userId: req.user._id, title: title.trim(), description: description || '', dueDate: dueDate ? new Date(dueDate) : null, dueText: dueText || '', priority: priority || 'Medium', category: category || 'General' });
     res.status(201).json({ success: true, task });
   } catch (error) { next(error); }

@@ -20,6 +20,7 @@ const userSchema = new mongoose.Schema(
         'Please enter a valid email address',
       ],
     },
+    phone: { type: String, default: '', trim: true, maxlength: 24 },
     passwordHash: {
       type: String,
       required: [true, 'Password is required'],
@@ -74,6 +75,7 @@ userSchema.methods.toAuthUser = function () {
     _id: this._id.toString(),
     name: this.name,
     email: this.email,
+    phone: this.phone || '',
     avatar: this.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(this.name)}&background=0F5132&color=fff`,
     githubUsername: this.githubUsername || '',
     googleEmail: this.googleEmail || '',

@@ -63,7 +63,8 @@ export const MusicPlayerBar = () => {
   }, [isPlaying, volume, isMuted, track.audioUrl]);
 
   const togglePlay = () => {
-    if (!track.audioUrl) { setAudioError('No audio stream configured. Add a licensed HTTPS stream URL to use Desk Radio.'); return; }
+    if (!track.audioUrl) { setAudioError('Radio stream is not configured on the server.'); return; }
+    setAudioError('');
     sendControl({ action: isPlaying ? 'pause' : 'play' }).catch(() => setAudioError('Playback state could not be saved.'));
   };
 
@@ -74,8 +75,8 @@ export const MusicPlayerBar = () => {
     const audio = audioRef.current;
     if (!audio) return;
     if (direction === 'previous' && audio.currentTime > 3) audio.currentTime = 0;
-    else if (direction === 'next' && isRepeat) audio.currentTime = 0;
-    else { audio.pause(); audio.currentTime = 0; setIsPlaying(false); setAudioError('No track queue is configured.'); }
+    else { audio.currentTime = 0; setCurrentTime(0); }
+    setAudioError('');
     sendControl({ action: direction }).catch(() => {});
   };
 
@@ -87,14 +88,16 @@ export const MusicPlayerBar = () => {
         bottom: 0,
         left: 0,
         right: 0,
-        height: '76px',
+        minHeight: '76px',
+        height: 'auto',
+        flexWrap: 'wrap',
         backgroundColor: '#072015',
         color: '#FFFFFF',
         borderTop: '1px solid rgba(255, 255, 255, 0.1)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: '0 24px',
+        padding: '10px 20px',
         zIndex: 50,
         boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.3)',
       }}
@@ -120,8 +123,9 @@ export const MusicPlayerBar = () => {
           <div style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.65)' }}>
             {track.artist}
           </div>
+          {track.attributionUrl && <a href={track.attributionUrl} target="_blank" rel="noreferrer" style={{ color: 'rgba(255,255,255,.5)', fontSize: 10 }}>Music credit · CC BY 3.0</a>}
         </div>
-        <button
+            <button
           onClick={toggleLike}
           style={{
             background: 'none',

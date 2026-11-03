@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { authService } from '../services/authService';
+import { apiClient } from '../services/apiClient';
 
 export const AuthContext = createContext();
 
@@ -74,6 +75,7 @@ export const AuthProvider = ({ children }) => {
     register,
     logout,
     refreshUser,
+    updateUser: async (updates) => { const body = await apiClient('/auth/profile', { method: 'PUT', body: updates }); setUser(body.user); return body.user; },
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

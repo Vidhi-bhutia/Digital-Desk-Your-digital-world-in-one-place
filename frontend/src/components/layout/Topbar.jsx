@@ -4,9 +4,13 @@ import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import Avatar from '../common/Avatar';
 import Badge from '../common/Badge';
+import { apiClient } from '../../services/apiClient';
 
 export const Topbar = ({ onOpenMobileNav, onOpenSearch, pageTitle = 'Dashboard' }) => {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [notificationError, setNotificationError] = useState('');
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
   const { user } = useAuth();
   const { isDark, toggleTheme } = useTheme();
 
@@ -143,7 +147,20 @@ export const Topbar = ({ onOpenMobileNav, onOpenSearch, pageTitle = 'Dashboard' 
 
         <button
           aria-label="Notifications"
-          onClick={() => setNotificationsOpen(value => !value)}
+          onClick={async () => {
+            const opening = !notificationsOpen; setNotificationsOpen(opening);
+            if (opening) {
+              setNotificationsLoading(true); setNotificationError('');
+              const results = await Promise.allSettled([apiClient('/gmail/summary'), apiClient('/github/summary')]);
+              const items = [];
+              if (results[0].status === 'fulfilled') for (const email of results[0].value.latestEmails || []) items.push({ id: `mail-${email.id}`, type: 'New email', title: email.subject, detail: `${email.sender} · ${email.snippet}`, url: email.url });
+              if (results[1].status === 'fulfilled') for (const event of (results[1].value.activities || []).slice(0, 5)) items.push({ id: `github-${event.id}`, type: 'GitHub activity', title: event.title, detail: event.detail, url: event.url });
+              setNotifications(items);
+              if (!items.length && results.every(result => result.status === 'rejected')) setNotificationError('Connect Gmail or GitHub in Settings to receive updates here.');
+              else if (results.some(result => result.status === 'rejected')) setNotificationError('Some connected services could not be reached. Showing available updates.');
+              setNotificationsLoading(false);
+            }
+          }}
           style={{
             width: '38px',
             height: '38px',
@@ -159,7 +176,7 @@ export const Topbar = ({ onOpenMobileNav, onOpenSearch, pageTitle = 'Dashboard' 
           }}
         >
           <Bell size={18} />
-          <span
+          {notifications.length > 0 && <span
             style={{
               position: 'absolute',
               top: '8px',
@@ -169,9 +186,9 @@ export const Topbar = ({ onOpenMobileNav, onOpenSearch, pageTitle = 'Dashboard' 
               borderRadius: '50%',
               backgroundColor: 'var(--color-brand)',
             }}
-          />
+          />}
         </button>
-        {notificationsOpen && <div role="dialog" aria-label="Notifications" style={{ position: 'absolute', right: 100, top: 60, width: 300, padding: 18, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-lg)', zIndex: 60 }}><strong style={{ color: 'var(--color-text)' }}>Notifications</strong><p style={{ marginTop: 8, fontSize: 13, color: 'var(--color-text-muted)' }}>Notifications are not available yet. No unread notifications are being reported.</p></div>}
+        {notificationsOpen && <div role="dialog" aria-label="Notifications" style={{ position: 'absolute', right: 100, top: 60, width: 'min(360px, calc(100vw - 24px))', maxHeight: '70vh', overflowY: 'auto', padding: 18, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-lg)', zIndex: 60 }}><strong style={{ color: 'var(--color-text)' }}>Recent updates</strong>{notificationsLoading ? <p style={{marginTop:8,color:'var(--color-text-muted)',fontSize:13}}>Loading updates…</p> : notificationError ? <p role="status" style={{marginTop:8,color:'var(--color-text-muted)',fontSize:13}}>{notificationError}</p> : notifications.length ? notifications.slice(0,8).map(item=><a key={item.id} href={item.url} target={item.url?.startsWith('/')?undefined:'_blank'} rel="noreferrer" style={{display:'block',padding:'11px 0',borderBottom:'1px solid var(--color-border-subtle)',color:'var(--color-text)',textDecoration:'none'}}><small style={{color:'var(--color-brand)'}}>{item.type}</small><div style={{fontSize:13,fontWeight:700}}>{item.title}</div><div style={{fontSize:12,color:'var(--color-text-muted)'}}>{item.detail}</div></a>) : <p style={{ marginTop: 8, fontSize: 13, color: 'var(--color-text-muted)' }}>No recent updates.</p>}</div>}
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingLeft: '8px' }}>
           <Avatar name={user?.name || 'User'} src={user?.avatar} size={36} />
