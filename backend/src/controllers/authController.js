@@ -435,8 +435,7 @@ const googleConnectCallback = async (req, res, next) => {
     const profileResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', { headers: { Authorization: `Bearer ${tokens.access_token}` } });
     const profile = await profileResponse.json();
     const userId = req.cookies.auth_token && require('../utils/jwt').verifyToken(req.cookies.auth_token)?.id;
-    let user = userId ? await User.findById(userId) : null;
-    if (!user && profile.email) user = await User.findOne({ email: profile.email.toLowerCase() });
+    const user = userId ? await User.findById(userId) : null;
     if (!user) return res.redirect(`${config.frontendUrl}/login?error=google_account`);
     user.googleEmail = profile.email || '';
     user.googleAccessToken = seal(tokens.access_token);

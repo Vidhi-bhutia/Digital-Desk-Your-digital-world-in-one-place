@@ -23,6 +23,9 @@ export const DashboardPage = () => {
   const [tasks, setTasks] = useState([]);
   const [taskCounts, setTaskCounts] = useState({ today: 0, upcoming: 0, overdue: 0, completed: 0 });
   const [activities, setActivities] = useState([]);
+  const [activityStatus, setActivityStatus] = useState('loading');
+  const [calendarError, setCalendarError] = useState('');
+  const [weatherLoading, setWeatherLoading] = useState(false);
   const [upNextEvents, setUpNextEvents] = useState([]);
   const [weatherData, setWeatherData] = useState(null);
   const [weatherError, setWeatherError] = useState('');
@@ -57,19 +60,20 @@ export const DashboardPage = () => {
   }, [fetchTasks, activeTaskTab]);
 
   useEffect(() => {
-    apiClient('/activity').then(res => { if (res?.activities) { setActivities(res.activities); setGithubActivities(res.activities.filter(a=>a.type==='github')); setGithubCount(res.summary?.githubRecent7d ?? 0); } }).catch(e => setProviderErrors(x => ({...x, activity: e.message})));
+    apiClient('/activity').then(res => { if (res?.activities) { setActivities(res.activities); setGithubActivities(res.activities.filter(a=>a.type==='github')); setGithubCount(res.summary?.githubRecent7d ?? 0); setActivityStatus('ready'); } }).catch(e => { setProviderErrors(x => ({...x, activity: e.message})); setActivityStatus('error'); });
     apiClient('/gmail/summary').then(res => setUnreadCount(res.summary?.unreadEmails ?? null)).catch(e => { setUnreadCount(null); setProviderErrors(x => ({...x, gmail: e.message})); });
 
     // Fetch Up Next / Calendar events
-    apiClient('/calendar/events')
-      .then(res => { if (res && res.events) setUpNextEvents(res.events); })
-      .catch(e => setProviderErrors(x => ({...x, calendar: e.message})));
+    apiClient(`/calendar/events?from=${encodeURIComponent(todayStart.toISOString())}&to=${encodeURIComponent(new Date(Date.now() + 90 * 86400000).toISOString())}`)
+      .then(res => { if (res && res.events) { setUpNextEvents(res.events); if (res.providerError) setCalendarError(res.providerError); } })
+      .catch(e => { setCalendarError(e.message); setProviderErrors(x => ({...x, calendar: e.message})); });
 
     // Fetch Weather Data
     const locationPermissionAsked = sessionStorage.getItem('digitaldesk-location-requested');
     if (!locationPermissionAsked && navigator.geolocation) {
       sessionStorage.setItem('digitaldesk-location-requested', 'true');
-      navigator.geolocation.getCurrentPosition(({ coords }) => apiClient(`/weather?lat=${coords.latitude}&lon=${coords.longitude}`).then(res => setWeatherData(res)).catch(e => setWeatherError(e.message)), e => setWeatherError(e.message || 'Location permission denied.'), { timeout: 8000, maximumAge: 600000 });
+      setWeatherLoading(true);
+      navigator.geolocation.getCurrentPosition(({ coords }) => apiClient(`/weather?lat=${coords.latitude}&lon=${coords.longitude}`).then(res => setWeatherData(res)).catch(e => setWeatherError(e.message)).finally(() => setWeatherLoading(false)), e => { setWeatherError(e.code === 1 ? 'Location permission was denied. Search for a city instead.' : e.message || 'Unable to get your location. Search for a city instead.'); setWeatherLoading(false); }, { timeout: 8000, maximumAge: 600000 });
     }
   }, []);
 
@@ -150,10 +154,14 @@ export const DashboardPage = () => {
             >
               <ActivityTimeline
                 activities={todaysActivities}
+                status={activityStatus}
+                error={providerErrors.activity}
+                onRetry={() => { setActivityStatus('loading'); apiClient('/activity').then(res => { setActivities(res.activities || []); setGithubActivities((res.activities || []).filter(a=>a.type==='github')); setActivityStatus('ready'); }).catch(e => { setProviderErrors(x => ({...x, activity:e.message})); setActivityStatus('error'); }); }}
                 onNavigate={(path) => navigate(path)}
               />
               <UpNextWidget
                 events={upcomingEvents}
+                error={calendarError}
                 onNavigate={(path) => navigate(path)}
               />
             </div>
@@ -172,11 +180,11 @@ export const DashboardPage = () => {
 
           {/* Right Column (Widgets Sidebar) */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            <WeatherWidget weatherData={weatherData} onLocate={() => {
+            <WeatherWidget weatherData={weatherData} loading={weatherLoading} error={weatherError} onSearchCity={async city => { setWeatherLoading(true); setWeatherError(''); try { const res = await apiClient(`/weather?city=${encodeURIComponent(city)}`); setWeatherData(res); } catch (e) { setWeatherError(e.message); } finally { setWeatherLoading(false); } }} onLocate={() => {
               if (!navigator.geolocation) { setWeatherError('Geolocation is unavailable in this browser.'); return; }
-              navigator.geolocation.getCurrentPosition(({ coords }) => apiClient(`/weather?lat=${coords.latitude}&lon=${coords.longitude}`).then(setWeatherData).catch(e => setWeatherError(e.message)), e => setWeatherError(e.message || 'Location permission denied.'), { timeout: 8000, maximumAge: 600000 });
+              setWeatherLoading(true); setWeatherError('');
+              navigator.geolocation.getCurrentPosition(({ coords }) => apiClient(`/weather?lat=${coords.latitude}&lon=${coords.longitude}`).then(setWeatherData).catch(e => setWeatherError(e.message)).finally(() => setWeatherLoading(false)), e => { setWeatherError(e.code === 1 ? 'Location permission was denied. Search for a city instead.' : e.message || 'Unable to get your location.'); setWeatherLoading(false); }, { timeout: 8000, maximumAge: 600000 });
             }} />
-            {weatherError && <div style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>{weatherError}</div>}
             <MiniCalendarWidget events={upNextEvents} />
             <QuickLinksWidget onNavigate={(path) => navigate(path)} />
           </div>

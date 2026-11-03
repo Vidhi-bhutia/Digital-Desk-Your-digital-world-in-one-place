@@ -3,10 +3,16 @@ import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 import MainContent from './MainContent';
 import MobileNav from './MobileNav';
+import { useEffect } from 'react';
 
 export const AppShell = ({ children, pageTitle, onOpenSearch }) => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  useEffect(() => {
+    const openSearch = () => onOpenSearch?.();
+    document.addEventListener('digitaldesk:open-search', openSearch);
+    return () => document.removeEventListener('digitaldesk:open-search', openSearch);
+  }, [onOpenSearch]);
 
   return (
     <div

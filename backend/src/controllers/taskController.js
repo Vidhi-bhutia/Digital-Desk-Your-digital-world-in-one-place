@@ -21,7 +21,7 @@ const getTasks = async (req, res, next) => {
       Task.countDocuments({ userId: req.user._id }),
       Task.countDocuments({ userId: req.user._id, completed: false, dueDate: { $gte: start, $lt: end } }),
       Task.countDocuments({ userId: req.user._id, completed: false, dueDate: { $gte: end } }),
-      Task.countDocuments({ userId: req.user._id, completed: false, dueDate: { $lt: start } }),
+      Task.countDocuments({ userId: req.user._id, completed: false, dueDate: { $exists: true, $lt: start } }),
       Task.countDocuments({ userId: req.user._id, completed: true }),
     ]);
     res.json({ success: true, tasks, counts: { total, today, upcoming, overdue, completed } });

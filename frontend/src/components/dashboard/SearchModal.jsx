@@ -13,7 +13,7 @@ export const SearchModal = ({ isOpen, onClose, inline = false }) => {
   const [activeSource, setActiveSource] = useState('all');
 
   useEffect(() => {
-    const handleKeyDown = e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); if (isOpen) onClose(); } };
+    const handleKeyDown = e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); if (isOpen) onClose(); else document.dispatchEvent(new CustomEvent('digitaldesk:open-search')); } };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);

@@ -5,6 +5,7 @@ import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 import MusicPlayerBar from '../../components/layout/MusicPlayerBar';
 import SearchModal from '../../components/dashboard/SearchModal';
+import Modal from '../../components/common/Modal';
 import { apiClient } from '../../services/apiClient';
 import { useToast } from '../../context/ToastContext';
 import { 
@@ -22,6 +23,8 @@ export const IntegrationsPage = () => {
   const [integrations, setIntegrations] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [removalProvider, setRemovalProvider] = useState('');
+  const [busyProvider, setBusyProvider] = useState('');
 
 
   const fetchStatus = async () => {
@@ -53,6 +56,17 @@ export const IntegrationsPage = () => {
     finish();
   }, []);
   const startGitHubOAuth = () => { window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/github`; };
+  const disconnect = async (provider, revoke = false) => {
+    setBusyProvider(provider);
+    try {
+      await apiClient(`/integrations/${provider}`, { method: 'DELETE', body: { revoke: true } });
+      setRemovalProvider('');
+      toast.success(`${provider === 'github' ? 'GitHub' : 'Google'} authorization revoked and removed.`);
+      await fetchStatus();
+    } catch (error) {
+      toast.error(error.message || 'Could not remove this integration.');
+    } finally { setBusyProvider(''); }
+  };
 
   return (
     <AppShell pageTitle="Integrations & API Connections" onOpenSearch={() => setIsSearchOpen(true)}>
@@ -125,6 +139,7 @@ export const IntegrationsPage = () => {
             </div>
 
             <div style={{ display: 'flex', gap: '10px', marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid var(--color-border-subtle)' }}>
+              {integrations?.github?.connected && <Button variant="danger" size="sm" isLoading={busyProvider === 'github'} onClick={() => setRemovalProvider('github')}>Disconnect and revoke</Button>}
               <Button variant="primary" size="sm" icon={RefreshCw} onClick={startGitHubOAuth}>
                 {integrations?.github?.connected ? 'Reconnect GitHub' : 'Connect with GitHub'}
               </Button>
@@ -172,6 +187,7 @@ export const IntegrationsPage = () => {
             </div>
 
             <div style={{ display: 'flex', gap: '10px', marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid var(--color-border-subtle)' }}>
+              {integrations?.google?.connected && <Button variant="danger" size="sm" isLoading={busyProvider === 'google'} onClick={() => setRemovalProvider('google')}>Disconnect and revoke</Button>}
               <Button variant="primary" size="sm" icon={RefreshCw} onClick={() => { window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/google/connect`; }}>
                 Configure Google
               </Button>
@@ -226,6 +242,10 @@ export const IntegrationsPage = () => {
 
       {/* Search Modal */}
       <SearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
+      <Modal isOpen={!!removalProvider} onClose={() => !busyProvider && setRemovalProvider('')} title={`Remove ${removalProvider === 'github' ? 'GitHub' : 'Google'} completely`} footer={<><Button variant="outline" disabled={!!busyProvider} onClick={() => setRemovalProvider('')}>Cancel</Button><Button variant="danger" isLoading={!!busyProvider} onClick={() => disconnect(removalProvider, true)}>Revoke and remove</Button></>}>
+        <p style={{ color: 'var(--color-text)', lineHeight: 1.6 }}>Digital Desk will ask {removalProvider === 'github' ? 'GitHub' : 'Google'} to revoke its authorization first. After provider confirmation, it deletes the saved credentials and disconnects this account.</p>
+        <p style={{ color: 'var(--color-text-muted)', lineHeight: 1.6, marginTop: 12 }}>Your Digital Desk account and tasks are retained. Integration credentials and access are removed. Previously synced calendar records, if any, may remain in Digital Desk.</p>
+      </Modal>
     </AppShell>
   );
 };

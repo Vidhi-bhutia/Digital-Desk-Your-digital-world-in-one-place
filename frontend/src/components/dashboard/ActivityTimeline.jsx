@@ -1,7 +1,7 @@
 import React from 'react';
 import { Github, Mail, Calendar, CheckSquare, ArrowRight } from 'lucide-react';
 
-export const ActivityTimeline = ({ activities = [], onNavigate }) => {
+export const ActivityTimeline = ({ activities = [], onNavigate, status = 'ready', error = '', onRetry }) => {
   const getIcon = (type) => {
     switch (type) {
       case 'github': return <Github size={16} color="#0F172A" />;
@@ -52,7 +52,9 @@ export const ActivityTimeline = ({ activities = [], onNavigate }) => {
       </p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', flex: 1, position: 'relative' }}>
-        {activities.length === 0 && <div style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>No activity recorded today.</div>}
+        {status === 'loading' && <div style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>Loading today's activity…</div>}
+        {status === 'error' && <div role="alert" style={{ color: 'var(--color-danger)', fontSize: 13 }}>{error || 'Activity could not be loaded.'} <button onClick={onRetry} style={{ border: 0, background: 'none', color: 'var(--color-brand)', cursor: 'pointer', fontWeight: 700 }}>Try again</button></div>}
+        {status === 'ready' && activities.length === 0 && <div style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>No activity recorded today.</div>}
         {activities.map((item, idx) => (
           <div key={item.id || idx} style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
             <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-subtle)', minWidth: '45px' }}>

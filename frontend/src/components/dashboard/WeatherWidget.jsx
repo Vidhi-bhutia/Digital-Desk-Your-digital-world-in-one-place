@@ -1,93 +1,17 @@
-import React from 'react';
-import { MapPin, Sun, Droplets, Wind, Sparkles } from 'lucide-react';
+import React, { useState } from 'react';
+import { MapPin, Sun, Droplets, Wind } from 'lucide-react';
 
-export const WeatherWidget = ({ weatherData, onLocate }) => {
+export const WeatherWidget = ({ weatherData, onLocate, loading = false, error = '', onSearchCity }) => {
+  const [city, setCity] = useState('');
   const data = weatherData;
-
-  return (
-    <div
-      style={{
-        backgroundColor: '#EAF5F0',
-        backgroundImage: 'linear-gradient(135deg, #F0F9F5 0%, #D8ECE2 100%)',
-        border: '1px solid var(--color-brand-light)',
-        borderRadius: 'var(--radius-lg)',
-        padding: '22px 24px',
-        boxShadow: 'var(--shadow-sm)',
-        color: '#0B3B24',
-        position: 'relative',
-        overflow: 'hidden',
-      }}
-    >
-      {/* Header Location */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 700, color: '#0F5132' }}>
-          <MapPin size={16} />
-          <span>{data?.location || 'Weather unavailable'}</span>
-        </div>
-        <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', cursor: 'pointer' }}>•••</span>
-      </div>
-
-      {/* Main Temperature & Weather Sun Graphic */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-        <div>
-          <div style={{ fontSize: '42px', fontWeight: 800, lineHeight: 1, fontFamily: 'var(--font-heading)', color: '#0B3B24' }}>
-            {data ? `${data.temperature}${data.unit || '°C'}` : '—'}
-          </div>
-          <div style={{ fontSize: '14px', fontWeight: 600, color: '#145A32', marginTop: '4px' }}>
-            {data?.condition || 'Choose a location to load weather'}
-          </div>
-        </div>
-
-        {/* Sun Illustration Graphic */}
-        <div
-          style={{
-            width: '64px',
-            height: '64px',
-            borderRadius: '50%',
-            backgroundColor: '#FDE68A',
-            boxShadow: '0 0 24px rgba(245, 158, 11, 0.4)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#D97706',
-          }}
-        >
-          <Sun size={38} />
-        </div>
-      </div>
-
-      {/* Weather Stats Grid */}
-      <div style={{ fontSize: '12px', fontWeight: 600, color: '#145A32', marginBottom: '14px' }}>
-        {data ? `Feels like ${data.feelsLike}${data.unit || '°C'} · ${data.locationSource === 'manual' ? 'Selected city' : 'Device location'}` : <button onClick={onLocate} style={{ color: '#145A32', border: 0, background: 'transparent', cursor: 'pointer' }}>Use my location</button>}
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
-        <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '8px 10px', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <Droplets size={14} color="#3B82F6" />
-          <div>
-            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Humidity</div>
-            <div style={{ fontSize: '12px', fontWeight: 700 }}>{data?.humidity || '—'}</div>
-          </div>
-        </div>
-
-        <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '8px 10px', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <Wind size={14} color="#10B981" />
-          <div>
-            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Wind</div>
-            <div style={{ fontSize: '12px', fontWeight: 700 }}>{data?.windSpeed || '—'}</div>
-          </div>
-        </div>
-
-        <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '8px 10px', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <Sparkles size={14} color="#F59E0B" />
-          <div>
-            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Air quality</div>
-            <div style={{ fontSize: '12px', fontWeight: 700 }}>{data ? '—' : 'Unavailable'}</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  return <section style={{ background: 'linear-gradient(135deg,#F0F9F5,#D8ECE2)', border: '1px solid var(--color-brand-light)', borderRadius: 'var(--radius-lg)', padding: '22px 24px', boxShadow: 'var(--shadow-sm)', color: '#0B3B24' }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, color: '#0F5132', fontWeight: 700, fontSize: 13 }}><span style={{ display: 'flex', gap: 6, alignItems: 'center' }}><MapPin size={16}/>{data?.location || (loading ? 'Loading weather…' : 'Weather')}</span><Sun size={20}/></div>
+    <div style={{ fontSize: 40, fontWeight: 800, lineHeight: 1 }}>{loading ? '…' : data ? `${data.temperature}${data.unit || '°C'}` : '—'}</div>
+    <div style={{ fontSize: 14, fontWeight: 600, margin: '5px 0 12px' }}>{data?.condition || (error ? 'Weather could not be loaded' : loading ? 'Fetching current conditions' : 'Choose a location to load weather')}</div>
+    <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 10 }}>{data ? `Feels like ${data.feelsLike}${data.unit || '°C'} · ${data.locationSource === 'manual' ? 'Selected city' : 'Device location'}` : <button onClick={onLocate} disabled={loading} style={{ color: '#145A32', border: 0, background: 'transparent', cursor: loading ? 'wait' : 'pointer' }}>{loading ? 'Loading…' : 'Use my location'}</button>}</div>
+    {error && <div role="status" style={{ fontSize: 12, color: '#9B1C1C', marginBottom: 10 }}>{error}</div>}
+    <form onSubmit={e => { e.preventDefault(); if (city.trim()) onSearchCity?.(city.trim()); }} style={{ display: 'flex', gap: 8, marginBottom: 14 }}><input aria-label="Search weather by city" value={city} onChange={e => setCity(e.target.value)} placeholder="Search a city" style={{ minWidth: 0, flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid #b7d6c5', background: 'rgba(255,255,255,.65)', color: '#0B3B24' }}/><button disabled={loading || !city.trim()} style={{ padding: '8px 12px', border: 0, borderRadius: 8, color: 'white', background: '#0F5132', cursor: loading || !city.trim() ? 'not-allowed' : 'pointer' }}>Search</button></form>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8 }}><div style={{ background: 'rgba(255,255,255,.6)', padding: 9, borderRadius: 8, display: 'flex', gap: 7, alignItems: 'center' }}><Droplets size={14} color="#3B82F6"/><span style={{ fontSize: 12 }}>Humidity <b>{data?.humidity || '—'}</b></span></div><div style={{ background: 'rgba(255,255,255,.6)', padding: 9, borderRadius: 8, display: 'flex', gap: 7, alignItems: 'center' }}><Wind size={14} color="#10B981"/><span style={{ fontSize: 12 }}>Wind <b>{data?.windSpeed || '—'}</b></span></div></div>
+  </section>;
 };
-
 export default WeatherWidget;

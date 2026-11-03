@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Search, Bell, Menu, Sun, Moon } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -6,6 +6,7 @@ import Avatar from '../common/Avatar';
 import Badge from '../common/Badge';
 
 export const Topbar = ({ onOpenMobileNav, onOpenSearch, pageTitle = 'Dashboard' }) => {
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const { user } = useAuth();
   const { isDark, toggleTheme } = useTheme();
 
@@ -142,6 +143,7 @@ export const Topbar = ({ onOpenMobileNav, onOpenSearch, pageTitle = 'Dashboard' 
 
         <button
           aria-label="Notifications"
+          onClick={() => setNotificationsOpen(value => !value)}
           style={{
             width: '38px',
             height: '38px',
@@ -169,6 +171,7 @@ export const Topbar = ({ onOpenMobileNav, onOpenSearch, pageTitle = 'Dashboard' 
             }}
           />
         </button>
+        {notificationsOpen && <div role="dialog" aria-label="Notifications" style={{ position: 'absolute', right: 100, top: 60, width: 300, padding: 18, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-lg)', zIndex: 60 }}><strong style={{ color: 'var(--color-text)' }}>Notifications</strong><p style={{ marginTop: 8, fontSize: 13, color: 'var(--color-text-muted)' }}>Notifications are not available yet. No unread notifications are being reported.</p></div>}
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingLeft: '8px' }}>
           <Avatar name={user?.name || 'User'} src={user?.avatar} size={36} />

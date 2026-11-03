@@ -10,7 +10,7 @@ import {
   Volume2, 
   VolumeX, 
   ListMusic, 
-  Maximize2 
+  Maximize2,
 } from 'lucide-react';
 import { apiClient } from '../../services/apiClient';
 
@@ -26,14 +26,26 @@ export const MusicPlayerBar = () => {
   });
   const audioRef = React.useRef(null);
   const [audioError, setAudioError] = useState('');
+  const [duration, setDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const formatTime = value => Number.isFinite(value) ? `${Math.floor(value / 60)}:${String(Math.floor(value % 60)).padStart(2, '0')}` : '0:00';
+  const sendControl = async body => {
+    const response = await apiClient('/music/control', { method: 'POST', body });
+    if (response?.data) {
+      setIsPlaying(!!response.data.isPlaying); setIsLiked(!!response.data.track?.isLiked);
+      setVolume(response.data.volume ?? volume); setIsShuffle(!!response.data.isShuffle); setIsRepeat(!!response.data.isRepeat);
+      if (response.data.track) setTrack(response.data.track);
+    }
+    return response?.data;
+  };
 
   useEffect(() => {
     // Fetch initial playback state from API
     apiClient('/music/now-playing')
       .then(res => {
         if (res && res.data) {
-          setIsPlaying(res.data.isPlaying);
-          setIsLiked(res.data.track.isLiked);
+          setIsPlaying(false);
+          setIsLiked(!!res.data.track?.isLiked);
           setVolume(res.data.volume);
           setIsShuffle(!!res.data.isShuffle);
           setIsRepeat(!!res.data.isRepeat);
@@ -52,12 +64,19 @@ export const MusicPlayerBar = () => {
 
   const togglePlay = () => {
     if (!track.audioUrl) { setAudioError('No audio stream configured. Add a licensed HTTPS stream URL to use Desk Radio.'); return; }
-    apiClient('/music/control', { method: 'POST', body: { action: isPlaying ? 'pause' : 'play' } }).then(r => setIsPlaying(r.data.isPlaying)).catch(() => {});
+    sendControl({ action: isPlaying ? 'pause' : 'play' }).catch(() => setAudioError('Playback state could not be saved.'));
   };
 
   const toggleLike = () => {
-    setIsLiked(!isLiked);
-    apiClient('/music/control', { method: 'POST', body: { action: 'like' } }).catch(() => {});
+    sendControl({ action: 'like' }).catch(() => setAudioError('Could not update saved track state.'));
+  };
+  const skip = direction => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (direction === 'previous' && audio.currentTime > 3) audio.currentTime = 0;
+    else if (direction === 'next' && isRepeat) audio.currentTime = 0;
+    else { audio.pause(); audio.currentTime = 0; setIsPlaying(false); setAudioError('No track queue is configured.'); }
+    sendControl({ action: direction }).catch(() => {});
   };
 
   return (
@@ -82,7 +101,7 @@ export const MusicPlayerBar = () => {
     >
       {/* Left: Track Details */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: '220px' }}>
-        <audio ref={audioRef} src={track.audioUrl || undefined} onError={() => { setAudioError('Audio stream unavailable.'); setIsPlaying(false); }} onEnded={() => setIsPlaying(false)} />
+        <audio ref={audioRef} src={track.audioUrl || undefined} onLoadedMetadata={e => setDuration(e.currentTarget.duration || 0)} onTimeUpdate={e => setCurrentTime(e.currentTarget.currentTime || 0)} onError={() => { setAudioError('Audio stream unavailable.'); setIsPlaying(false); }} onEnded={() => { if (isRepeat) { audioRef.current.currentTime = 0; audioRef.current.play().catch(() => setIsPlaying(false)); } else { setIsPlaying(false); setCurrentTime(0); } }} />
         {track.cover ? <img
           src={track.cover}
           alt={track.title}
@@ -129,10 +148,10 @@ export const MusicPlayerBar = () => {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <button aria-label="Shuffle" onClick={() => setIsShuffle(v => { apiClient('/music/control', {method:'POST', body:{isShuffle:!v}}).catch(()=>{}); return !v; })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: isShuffle ? '#10B981' : 'rgba(255, 255, 255, 0.6)' }}>
+          <button aria-label="Shuffle" onClick={() => sendControl({ isShuffle: !isShuffle }).catch(() => {})} style={{ background: 'none', border: 'none', cursor: 'pointer', color: isShuffle ? '#10B981' : 'rgba(255, 255, 255, 0.6)' }}>
             <Shuffle size={16} />
           </button>
-          <button aria-label="Previous track" onClick={() => { setIsPlaying(false); apiClient('/music/control',{method:'POST',body:{action:'previous'}}).catch(()=>{}); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#FFFFFF' }}>
+          <button aria-label="Previous track" onClick={() => skip('previous')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#FFFFFF' }}>
             <SkipBack size={18} fill="#FFFFFF" />
           </button>
           <button
@@ -153,10 +172,10 @@ export const MusicPlayerBar = () => {
           >
             {isPlaying ? <Pause size={18} fill="#072015" /> : <Play size={18} fill="#072015" style={{ marginLeft: '2px' }} />}
           </button>
-          <button aria-label="Next track" onClick={() => { setIsPlaying(false); apiClient('/music/control',{method:'POST',body:{action:'next'}}).catch(()=>{}); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#FFFFFF' }}>
+          <button aria-label="Next track" onClick={() => skip('next')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#FFFFFF' }}>
             <SkipForward size={18} fill="#FFFFFF" />
           </button>
-          <button aria-label="Repeat" onClick={() => setIsRepeat(v => { apiClient('/music/control', {method:'POST', body:{isRepeat:!v}}).catch(()=>{}); return !v; })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: isRepeat ? '#10B981' : 'rgba(255, 255, 255, 0.6)' }}>
+          <button aria-label="Repeat" onClick={() => sendControl({ isRepeat: !isRepeat }).catch(() => {})} style={{ background: 'none', border: 'none', cursor: 'pointer', color: isRepeat ? '#10B981' : 'rgba(255, 255, 255, 0.6)' }}>
             <Repeat size={16} />
           </button>
         </div>
@@ -164,7 +183,7 @@ export const MusicPlayerBar = () => {
         {/* Scrubber Bar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%' }}>
           <span style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.6)', fontFamily: 'monospace' }}>
-            {audioError || track.currentTime}
+            {audioError || formatTime(currentTime)}
           </span>
           <div
             style={{
@@ -173,12 +192,13 @@ export const MusicPlayerBar = () => {
               backgroundColor: 'rgba(255, 255, 255, 0.2)',
               borderRadius: '2px',
               position: 'relative',
-              cursor: 'pointer',
+              cursor: track.audioUrl ? 'pointer' : 'not-allowed',
             }}
+            onClick={e => { if (!audioRef.current || !duration) return; const bounds = e.currentTarget.getBoundingClientRect(); audioRef.current.currentTime = Math.max(0, Math.min(duration, ((e.clientX - bounds.left) / bounds.width) * duration)); }}
           >
             <div
               style={{
-                width: '35%',
+                width: `${duration ? (currentTime / duration) * 100 : 0}%`,
                 height: '100%',
                 backgroundColor: '#10B981',
                 borderRadius: '2px',
@@ -186,14 +206,14 @@ export const MusicPlayerBar = () => {
             />
           </div>
           <span style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.6)', fontFamily: 'monospace' }}>
-            {track.duration}
+            {duration ? formatTime(duration) : track.duration || '0:00'}
           </span>
         </div>
       </div>
 
       {/* Right: Auxiliary Controls & Volume */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: '180px', justifyContent: 'flex-end' }}>
-        <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255, 255, 255, 0.7)' }}>
+        <button aria-label="Track queue" title={audioError || 'Track queue'} onClick={() => setAudioError(track.audioUrl ? 'Queue controls require a configured playlist.' : 'No audio stream or track queue is configured.')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255, 255, 255, 0.7)' }}>
           <ListMusic size={18} />
         </button>
 
@@ -209,12 +229,12 @@ export const MusicPlayerBar = () => {
             min="0"
             max="100"
             value={isMuted ? 0 : volume}
-            onChange={(e) => { setVolume(Number(e.target.value)); setIsMuted(false); }}
+            onChange={(e) => { const next = Number(e.target.value); setVolume(next); setIsMuted(false); if (audioRef.current) audioRef.current.volume = next / 100; sendControl({ volume: next }).catch(() => {}); }}
             style={{ width: '80px', accentColor: '#10B981', cursor: 'pointer' }}
           />
         </div>
 
-        <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255, 255, 255, 0.7)' }}>
+        <button aria-label="Expand player" title="Player is already in the dashboard bar" style={{ background: 'none', border: 'none', cursor: 'default', color: 'rgba(255, 255, 255, 0.35)' }}>
           <Maximize2 size={16} />
         </button>
       </div>
