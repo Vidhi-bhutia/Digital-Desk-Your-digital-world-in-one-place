@@ -12,6 +12,7 @@ const { searchAll } = require('../controllers/searchController');
 const { getNowPlaying, controlPlayback } = require('../controllers/musicController');
 const { getIntegrationStatus, connectGitHub, connectGoogle, disconnectProvider } = require('../controllers/integrationsController');
 const { githubCallback, googleConnectCallback } = require('../controllers/authController');
+const notifications = require('../controllers/notificationController');
 
 // OAuth providers return to these integration callback URLs.
 router.get('/integrations/github/callback', githubCallback);
@@ -19,6 +20,11 @@ router.get('/integrations/google/callback', googleConnectCallback);
 
 // Protect all Phase 2 feature routes
 router.use(requireAuth);
+router.get('/notifications', notifications.list);
+router.patch('/notifications/read-all', notifications.readAll);
+router.patch('/notifications/:id', notifications.mark);
+router.delete('/notifications', notifications.clear);
+router.delete('/notifications/:id', notifications.remove);
 
 // Integrations Hub Management APIs
 router.get('/integrations/status', getIntegrationStatus);

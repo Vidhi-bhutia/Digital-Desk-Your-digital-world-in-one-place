@@ -28,6 +28,8 @@ export const MusicPlayerBar = () => {
   const [audioError, setAudioError] = useState('');
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
+  const [library, setLibrary] = useState([]);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const formatTime = value => Number.isFinite(value) ? `${Math.floor(value / 60)}:${String(Math.floor(value % 60)).padStart(2, '0')}` : '0:00';
   const sendControl = async body => {
     const response = await apiClient('/music/control', { method: 'POST', body });
@@ -49,6 +51,7 @@ export const MusicPlayerBar = () => {
           setVolume(res.data.volume);
           setIsShuffle(!!res.data.isShuffle);
           setIsRepeat(!!res.data.isRepeat);
+          setLibrary(res.data.tracks || []);
           if (res.data.track) setTrack(res.data.track);
         }
       })
@@ -86,7 +89,7 @@ export const MusicPlayerBar = () => {
       style={{
         position: 'fixed',
         bottom: 0,
-        left: 0,
+        left: 'var(--dd-sidebar-width, 260px)',
         right: 0,
         minHeight: '76px',
         height: 'auto',
@@ -123,7 +126,7 @@ export const MusicPlayerBar = () => {
           <div style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.65)' }}>
             {track.artist}
           </div>
-          {track.attributionUrl && <a href={track.attributionUrl} target="_blank" rel="noreferrer" style={{ color: 'rgba(255,255,255,.5)', fontSize: 10 }}>Music credit · CC BY 3.0</a>}
+          {track.attributionUrl && <span style={{ display: 'flex', gap: 5, fontSize: 10 }}><a href={track.attributionUrl} target="_blank" rel="noreferrer" style={{ color: 'rgba(255,255,255,.58)' }}>Credit: {track.artist}</a>{track.licenseUrl && <a href={track.licenseUrl} target="_blank" rel="noreferrer" style={{ color: 'rgba(255,255,255,.42)' }}>{track.license || 'License'}</a>}</span>}
         </div>
             <button
           onClick={toggleLike}
@@ -217,7 +220,7 @@ export const MusicPlayerBar = () => {
 
       {/* Right: Auxiliary Controls & Volume */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: '180px', justifyContent: 'flex-end' }}>
-        <button aria-label="Track queue" title={audioError || 'Track queue'} onClick={() => setAudioError(track.audioUrl ? 'Queue controls require a configured playlist.' : 'No audio stream or track queue is configured.')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255, 255, 255, 0.7)' }}>
+        <button aria-label="Open music library" title="Desk Radio library" onClick={() => setLibraryOpen(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255, 255, 255, 0.7)' }}>
           <ListMusic size={18} />
         </button>
 
@@ -242,6 +245,7 @@ export const MusicPlayerBar = () => {
           <Maximize2 size={16} />
         </button>
       </div>
+      {libraryOpen && <div role="dialog" aria-label="Desk Radio library" style={{ position: 'absolute', right: 90, bottom: 'calc(100% + 10px)', width: 'min(360px, calc(100vw - 24px))', maxHeight: 360, overflowY: 'auto', background: '#0b2c1d', border: '1px solid rgba(255,255,255,.15)', borderRadius: 14, padding: 14, boxShadow: '0 12px 35px rgba(0,0,0,.35)' }}><strong style={{ display: 'block', marginBottom: 8 }}>Desk Radio · Hindustani music library</strong>{library.map(item => <div key={item.id} style={{ padding: '10px 8px', borderBottom: '1px solid rgba(255,255,255,.12)' }}><button onClick={() => { setAudioError(''); sendControl({ trackId: item.id }).catch(() => setAudioError('Could not load this track.')); setLibraryOpen(false); }} style={{ width: '100%', textAlign: 'left', border: 0, color: '#fff', background: 'transparent', cursor: 'pointer' }}><b>{item.title}</b></button><small style={{ display: 'flex', gap: 7, color: 'rgba(255,255,255,.65)' }}><a href={item.attributionUrl} target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>{item.artist}</a><a href={item.licenseUrl} target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>{item.license}</a></small></div>)}</div>}
     </div>
   );
 };

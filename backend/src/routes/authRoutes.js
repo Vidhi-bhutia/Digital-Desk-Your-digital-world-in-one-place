@@ -7,6 +7,9 @@ const {
   getMe,
   updateProfile,
   changePassword,
+  listSessions,
+  logoutOtherSessions,
+  deleteAccount,
   forgotPassword,
   resetPassword,
   githubAuth,
@@ -40,5 +43,8 @@ router.post('/logout', logout);
 router.get('/me', requireAuth, getMe);
 router.put('/profile', requireAuth, updateProfile);
 router.put('/password', requireAuth, changePassword);
+router.get('/sessions', requireAuth, listSessions);
+router.delete('/sessions/others', requireAuth, logoutOtherSessions);
+router.delete('/account', requireAuth, deleteAccount);
 
 module.exports = router;

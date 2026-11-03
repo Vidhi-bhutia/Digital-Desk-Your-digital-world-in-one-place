@@ -159,7 +159,17 @@ const sendOtpEmail = async (user, otpCode) => {
   }
 };
 
+const sendNotificationEmail = async (user, notification) => {
+  const transporter = createTransporter();
+  if (!transporter) return false;
+  try {
+    await transporter.sendMail({ from: config.smtp.from, to: user.email, subject: `Digital Desk: ${notification.title}`, text: `${notification.message || notification.title}\n\nOpen Digital Desk: ${config.frontendUrl}${notification.link || '/'}` });
+    return true;
+  } catch (error) { logger.error(`Notification email failed for ${user.email}:`, error); return false; }
+};
+
 module.exports = {
   sendWelcomeEmail,
   sendOtpEmail,
+  sendNotificationEmail,
 };

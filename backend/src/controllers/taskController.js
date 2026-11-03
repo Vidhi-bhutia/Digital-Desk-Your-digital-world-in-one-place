@@ -2,6 +2,7 @@ const Task = require('../models/Task');
 const crypto = require('crypto');
 const { googleFetch } = require('../services/googleService');
 const User = require('../models/User');
+const { notifyIfAllowed } = require('./notificationController');
 
 const getTasks = async (req, res, next) => {
   try {
@@ -53,6 +54,7 @@ const updateTask = async (req, res, next) => {
     if (typeof changes.completed === 'boolean') changes.completedAt = changes.completed ? new Date() : null;
     const task = await Task.findOneAndUpdate({ _id: req.params.id, userId: req.user._id }, { $set: changes }, { new: true, runValidators: true });
     if (!task) return res.status(404).json({ success: false, message: 'Task not found.' });
+    if (task.completed && req.user.notificationPreferences?.completedTasks === true) await notifyIfAllowed(req.user, { category: 'tasks', title: 'Task completed', message: task.title, link: '/tasks', dedupeKey: `task:${task._id}:completed:${task.completedAt?.getTime() || Date.now()}` });
     res.json({ success: true, task });
   } catch (error) { next(error); }
 };

@@ -1,6 +1,8 @@
 const { verifyToken } = require('../utils/jwt');
 const User = require('../models/User');
 const logger = require('../utils/logger');
+const AuthSession = require('../models/AuthSession');
+const config = require('../config/env');
 
 const requireAuth = async (req, res, next) => {
   try {
@@ -32,6 +34,7 @@ const requireAuth = async (req, res, next) => {
         code: 'INVALID_TOKEN',
       });
     }
+    if (decoded.jti && !await AuthSession.exists({ userId: decoded.id, tokenId: decoded.jti, expiresAt: { $gt: new Date() } })) return res.status(401).json({ success: false, message: 'This session has ended. Please log in again.', code: 'SESSION_REVOKED' });
 
     // Retrieve authenticated user
     const user = await User.findById(decoded.id);
@@ -41,6 +44,20 @@ const requireAuth = async (req, res, next) => {
         message: 'User belonging to this token no longer exists.',
         code: 'USER_NOT_FOUND',
       });
+    }
+
+    // Upgrade older non-session JWTs in place so existing signed-in users are
+    // visible in the session list and can revoke sessions immediately.
+    if (!decoded.jti) {
+      const tokenId = `legacy-${require('crypto').createHash('sha256').update(token).digest('hex')}`;
+      req.authSessionId = tokenId;
+      const expiresAt = new Date((decoded.exp || Math.floor(Date.now() / 1000) + 604800) * 1000);
+      try { await AuthSession.updateOne({ userId: user._id, tokenId }, { $setOnInsert: { userId: user._id, tokenId, expiresAt, device: req.get('user-agent') || 'Unknown device', ip: req.ip || '' } }, { upsert: true }); } catch (e) { if (e.code !== 11000) throw e; }
+      const replacement = require('../utils/jwt').generateToken({ id: user._id, jti: tokenId });
+      res.cookie('auth_token', replacement, { httpOnly: true, secure: config.nodeEnv === 'production', sameSite: config.nodeEnv === 'production' ? 'strict' : 'lax', maxAge: Math.max(0, expiresAt.getTime() - Date.now()) });
+    } else {
+      req.authSessionId = decoded.jti;
+      await AuthSession.updateOne({ userId: user._id, tokenId: decoded.jti, lastSeenAt: { $lt: new Date(Date.now() - 5 * 60 * 1000) } }, { $set: { lastSeenAt: new Date() } });
     }
 
     // Attach user to request

@@ -1,6 +1,7 @@
 const Task = require('../models/Task');
 const CalendarEvent = require('../models/CalendarEvent');
 const { getGitHubActivity } = require('./githubController');
+const { notifyIfAllowed } = require('./notificationController');
 
 const getActivityFeed = async (req, res, next) => {
   try {
@@ -26,7 +27,7 @@ const getActivityFeed = async (req, res, next) => {
           url: event.htmlLink || '/calendar',
         }));
       }
-    } catch (error) { providerErrors.calendar = error.message; }
+    } catch (error) { providerErrors.calendar = error.message; await notifyIfAllowed(req.user, { category: 'integrations', title: 'Google Calendar needs attention', message: 'Calendar sync failed. Reconnect Google in Settings.', link: '/settings', dedupeKey: `integration:google:${error.status || error.message}` }); }
     try {
       const githubUser = await require('../models/User').findById(req.user._id).select('+githubAccessToken');
       if (githubUser.githubAccessToken) {
@@ -36,7 +37,7 @@ const getActivityFeed = async (req, res, next) => {
         githubRecent7d = result.activityRecent;
       }
       else providerErrors.github = 'GitHub is not connected.';
-    } catch (error) { providerErrors.github = error.message; }
+    } catch (error) { providerErrors.github = error.message; await notifyIfAllowed(req.user, { category: 'integrations', title: 'GitHub needs attention', message: 'GitHub sync failed. Reconnect GitHub in Settings.', link: '/settings', dedupeKey: `integration:github:${error.status || error.message}` }); }
     const activities = [
       ...githubActivities,
       ...tasks.map(t => ({ id: `task-${t._id}`, timestamp: t.completed ? (t.completedAt || t.updatedAt) : (t.createdAt || t.updatedAt), type: 'task', icon: 'task', title: t.completed ? 'Completed task' : 'Task added', detail: t.title, url: '/tasks' })),
@@ -44,7 +45,7 @@ const getActivityFeed = async (req, res, next) => {
       ...googleMeetings,
     ].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, Math.min(Number(req.query.limit) || 30, 100));
     res.json({ success: true, activities, nextCursor: null, providers: providerErrors, sources: { github: githubActivities.length, tasks: tasks.length, calendar: events.length + googleMeetings.length }, summary: { githubRecent7d, githubConnected } });
-  } catch (error) { next(error); }
+  } catch (error) { await notifyIfAllowed(req.user, { category: 'system', title: 'Activity sync failed', message: 'Some workspace activity could not be synchronized.', link: '/activity', dedupeKey: `system:activity:${error.status || error.message}` }).catch(() => {}); next(error); }
 };
 
 module.exports = { getActivityFeed };

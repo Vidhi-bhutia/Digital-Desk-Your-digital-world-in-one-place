@@ -5,6 +5,19 @@ const { generateResetToken, generateOtp, hashToken, seal } = require('../utils/c
 const { sendWelcomeEmail, sendOtpEmail } = require('../services/emailService');
 const config = require('../config/env');
 const logger = require('../utils/logger');
+const AuthSession = require('../models/AuthSession');
+const Notification = require('../models/Notification');
+const Task = require('../models/Task');
+const CalendarEvent = require('../models/CalendarEvent');
+const { notifyIfAllowed } = require('./notificationController');
+
+const issueSession = async (user, req) => {
+  const tokenId = require('crypto').randomUUID();
+  const expiresAt = new Date(Date.now() + 7 * 86400000);
+  const token = generateToken({ id: user._id, jti: tokenId });
+  await AuthSession.create({ userId: user._id, tokenId, expiresAt, ip: req.ip || '', device: req.get('user-agent') || 'Unknown device' });
+  return token;
+};
 
 // Helper to set auth cookie
 const sendAuthCookie = (res, token) => {
@@ -53,7 +66,7 @@ const register = async (req, res, next) => {
 
     sendWelcomeEmail(user).catch(err => logger.error('Async welcome email send error:', err));
 
-    const token = generateToken({ id: user._id });
+    const token = await issueSession(user, req);
     sendAuthCookie(res, token);
 
     logger.info(`User registered & welcome email dispatched: ${user.email}`);
@@ -92,7 +105,8 @@ const login = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'Invalid email or password.', code: 'INVALID_CREDENTIALS' });
     }
 
-    const token = generateToken({ id: user._id });
+    const token = await issueSession(user, req);
+    await notifyIfAllowed(user, { category: 'security', title: 'New sign-in', message: `${req.get('user-agent') || 'A device'} · ${req.ip || ''}`, link: '/profile', dedupeKey: `login:${Date.now()}:${token}` });
     sendAuthCookie(res, token);
 
     logger.info(`User logged in successfully: ${user.email}`);
@@ -112,6 +126,10 @@ const login = async (req, res, next) => {
  * @route POST /api/auth/logout
  */
 const logout = async (req, res) => {
+  const rawToken = req.cookies?.auth_token;
+  const decoded = rawToken && require('../utils/jwt').verifyToken(rawToken);
+  if (decoded?.jti) await AuthSession.deleteOne({ tokenId: decoded.jti });
+  else if (decoded?.id) await AuthSession.deleteOne({ userId: decoded.id, tokenId: `legacy-${require('crypto').createHash('sha256').update(rawToken).digest('hex')}` });
   res.clearCookie('auth_token', {
     httpOnly: true,
     secure: config.nodeEnv === 'production',
@@ -149,6 +167,7 @@ const updateProfile = async (req, res, next) => {
       const normalizedEmail = email.toLowerCase().trim();
       if (await User.exists({ email: normalizedEmail, _id: { $ne: req.user._id } })) return res.status(409).json({ success: false, message: 'That email address is already in use.' });
       req.user.email = normalizedEmail;
+      req.user.emailVerifiedAt = null;
     }
     if (phone !== undefined) {
       const normalizedPhone = String(phone).trim();
@@ -159,7 +178,12 @@ const updateProfile = async (req, res, next) => {
       if (avatar && (!/^data:image\/(png|jpeg|webp|gif);base64,/.test(avatar) || avatar.length > 4_000_000)) return res.status(400).json({ success: false, message: 'Upload a supported image smaller than 3 MB.' });
       req.user.avatar = avatar || '';
     }
+    if (req.body.notificationPreferences && typeof req.body.notificationPreferences === 'object') {
+      const incoming = req.body.notificationPreferences;
+      req.user.notificationPreferences = { ...(req.user.notificationPreferences || {}), ...incoming, categories: { ...(req.user.notificationPreferences?.categories || {}), ...(incoming.categories || {}) } };
+    }
     await req.user.save();
+    await notifyIfAllowed(req.user, { category: 'security', title: 'Account profile updated', message: 'Your account information was changed.', link: '/profile', dedupeKey: `profile:${req.user.updatedAt?.getTime() || Date.now()}` });
     res.json({ success: true, user: req.user.toAuthUser() });
   } catch (error) { next(error); }
 };
@@ -172,8 +196,25 @@ const changePassword = async (req, res, next) => {
     if (!await account.comparePassword(currentPassword || '')) return res.status(401).json({ success: false, message: 'Current password is incorrect.' });
     account.passwordHash = await User.hashPassword(newPassword);
     await account.save();
+    if (req.authSessionId) await AuthSession.deleteMany({ userId: req.user._id, tokenId: { $ne: req.authSessionId } });
+    await notifyIfAllowed(req.user, { category: 'security', title: 'Password changed', message: 'Your account password was changed.', link: '/profile', dedupeKey: `password:${Date.now()}` });
     res.json({ success: true, message: 'Password changed successfully.' });
   } catch (error) { next(error); }
+};
+
+const listSessions = async (req, res, next) => { try { const sessions = await AuthSession.find({ userId: req.user._id, expiresAt: { $gt: new Date() } }).sort({ lastSeenAt: -1 }).lean(); res.json({ success: true, sessions: sessions.map(s => ({ id: s._id, device: s.device, ip: s.ip, lastSeenAt: s.lastSeenAt, current: s.tokenId === req.authSessionId })) }); } catch (e) { next(e); } };
+const logoutOtherSessions = async (req, res, next) => { try { if (req.authSessionId) await AuthSession.deleteMany({ userId: req.user._id, tokenId: { $ne: req.authSessionId } }); res.json({ success: true }); } catch (e) { next(e); } };
+const deleteAccount = async (req, res, next) => {
+  try {
+    if (req.body.confirmation !== 'DELETE' || !req.body.currentPassword) return res.status(400).json({ success: false, message: 'Type DELETE and enter your password to confirm account removal.' });
+    const account = await User.findById(req.user._id).select('+passwordHash +googleAccessToken +googleRefreshToken +githubAccessToken');
+    if (!await account.comparePassword(req.body.currentPassword)) return res.status(401).json({ success: false, message: 'Current password is incorrect.' });
+    const { unseal } = require('../utils/crypto');
+    if (account.googleRefreshToken || account.googleAccessToken) { const token = account.googleRefreshToken ? unseal(account.googleRefreshToken) : unseal(account.googleAccessToken); if (token) await fetch('https://oauth2.googleapis.com/revoke', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ token }) }).catch(() => {}); }
+    if (account.githubAccessToken) { const token = unseal(account.githubAccessToken); if (token) await fetch('https://api.github.com/applications/' + config.github.clientId + '/grant', { method: 'DELETE', headers: { Accept: 'application/vnd.github+json', Authorization: `Basic ${Buffer.from(`${config.github.clientId}:${config.github.clientSecret}`).toString('base64')}`, 'Content-Type': 'application/json', 'X-GitHub-Api-Version': '2022-11-28' }, body: JSON.stringify({ access_token: token }) }).catch(() => {}); }
+    await Promise.all([Task.deleteMany({ userId: req.user._id }), CalendarEvent.deleteMany({ userId: req.user._id }), Notification.deleteMany({ userId: req.user._id }), AuthSession.deleteMany({ userId: req.user._id })]);
+    await User.deleteOne({ _id: req.user._id }); res.clearCookie('auth_token'); res.json({ success: true, message: 'Account and Digital Desk data removed.' });
+  } catch (e) { next(e); }
 };
 
 /**
@@ -260,6 +301,8 @@ const resetPassword = async (req, res, next) => {
     user.passwordResetOtpHash = undefined;
     user.passwordResetOtpExpires = undefined;
     await user.save();
+    await AuthSession.deleteMany({ userId: user._id });
+    await notifyIfAllowed(user, { category: 'security', title: 'Password reset', message: 'Your account password was reset. Sign in again on your devices.', link: '/login', dedupeKey: `password-reset:${Date.now()}` });
 
     logger.info(`Password successfully reset for user: ${user.email}`);
 
@@ -445,7 +488,7 @@ const googleCallback = async (req, res, next) => {
       await user.save();
     }
 
-    const token = generateToken({ id: user._id });
+    const token = await issueSession(user, req);
     sendAuthCookie(res, token);
 
     logger.info(`Google OAuth login successful for: ${user.email}`);
@@ -494,6 +537,9 @@ module.exports = {
   getMe,
   updateProfile,
   changePassword,
+  listSessions,
+  logoutOtherSessions,
+  deleteAccount,
   forgotPassword,
   resetPassword,
   githubAuth,

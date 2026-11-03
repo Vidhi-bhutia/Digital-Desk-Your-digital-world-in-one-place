@@ -18,6 +18,7 @@ export const AppShell = ({ children, pageTitle, onOpenSearch }) => {
     <div
       className="dd-app-shell"
       style={{
+        '--dd-sidebar-width': isSidebarCollapsed ? '80px' : '260px',
         display: 'flex',
         minHeight: '100vh',
         backgroundColor: 'var(--color-bg)',

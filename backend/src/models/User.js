@@ -21,6 +21,8 @@ const userSchema = new mongoose.Schema(
       ],
     },
     phone: { type: String, default: '', trim: true, maxlength: 24 },
+    emailVerifiedAt: { type: Date, default: null },
+    notificationPreferences: { type: mongoose.Schema.Types.Mixed, default: () => ({ enabled: true, inApp: true, email: false, desktop: false, sound: false, categories: { tasks: true, integrations: true, security: true, system: true }, completedTasks: false }) },
     passwordHash: {
       type: String,
       required: [true, 'Password is required'],
@@ -75,6 +77,8 @@ userSchema.methods.toAuthUser = function () {
     _id: this._id.toString(),
     name: this.name,
     email: this.email,
+    emailVerifiedAt: this.emailVerifiedAt || null,
+    notificationPreferences: this.notificationPreferences || { enabled: true, inApp: true, email: false, desktop: false, sound: false, categories: { tasks: true, integrations: true, security: true, system: true }, completedTasks: false },
     phone: this.phone || '',
     avatar: this.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(this.name)}&background=0F5132&color=fff`,
     githubUsername: this.githubUsername || '',

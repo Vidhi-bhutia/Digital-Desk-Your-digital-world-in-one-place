@@ -176,6 +176,11 @@ h1, h2, h3, h4, h5, h6 {
 
 .dd-music-bar > div { min-width: 0; }
 @media (max-width: 760px) {
+  .desktop-sidebar-container { display: none; }
+  .mobile-menu-btn { display: flex !important; }
+  .dd-music-bar { left: 0 !important; }
+}
+@media (max-width: 760px) {
   .dd-main-content { padding: 20px 14px 160px !important; }
   .dd-music-bar { gap: 8px; padding: 10px 12px !important; }
   .dd-music-bar > div:first-of-type { flex: 1 1 45%; min-width: 145px !important; }

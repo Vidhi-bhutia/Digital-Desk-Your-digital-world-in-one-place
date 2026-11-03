@@ -1,6 +1,8 @@
 const config = require('../config/env');
 const { seal, unseal } = require('../utils/crypto');
 const User = require('../models/User');
+const { notifyIfAllowed } = require('./notificationController');
+const Notification = require('../models/Notification');
 
 const getIntegrationStatus = async (req, res) => {
   const user = await require('../models/User').findById(req.user._id).select('+githubAccessToken +googleAccessToken +googleRefreshToken');
@@ -30,6 +32,10 @@ const getIntegrationStatus = async (req, res) => {
     if (!status.google.calendar) status.google.errors.calendar = checks[1].reason.message;
     status.google.connected = status.google.gmail || status.google.calendar;
   }
+  for (const [provider, error] of [['github', status.github.error], ['google', status.google.errors.calendar || status.google.errors.gmail]]) {
+    if (error) await notifyIfAllowed(req.user, { category: 'integrations', title: `${provider === 'github' ? 'GitHub' : 'Google'} authorization needs attention`, message: error, link: '/settings', dedupeKey: `integration-status:${provider}:${error}` });
+    else if (status[provider].connected) { const previous = await Notification.findOne({ userId: req.user._id, category: 'integrations', dedupeKey: new RegExp(`^integration-status:${provider}:`) }).select('dedupeKey').lean(); if (previous) await notifyIfAllowed(req.user, { category: 'integrations', title: `${provider === 'github' ? 'GitHub' : 'Google'} reconnected`, message: 'Service access is working again.', link: '/settings', dedupeKey: `integration-reconnected:${previous.dedupeKey}` }); }
+  }
   res.json({ success: true, integrations: status });
 };
 
@@ -42,6 +48,7 @@ const connectGitHub = async (req, res) => {
   req.user.githubUsername = profile.login;
   req.user.githubAccessToken = seal(token);
   await req.user.save();
+  await notifyIfAllowed(req.user, { category: 'integrations', title: 'GitHub connected', message: `Connected ${profile.login}.`, link: '/settings', dedupeKey: `github-connected:${Date.now()}` });
   res.json({ success: true, integration: { connected: true, username: profile.login } });
 };
 
