@@ -24,7 +24,7 @@ const allowedOrigins = [
 const normalizeOrigin = (value) => {
   try { return new URL(value).origin; } catch { return null; }
 };
-const configuredOrigins = (config.frontendUrl || '').split(',').map(normalizeOrigin).filter(Boolean);
+const configuredOrigins = (config.frontendUrls || [config.frontendUrl]).map(normalizeOrigin).filter(Boolean);
 const isAllowedOrigin = (origin) => {
   const normalized = normalizeOrigin(origin);
   if (!normalized) return false;
@@ -51,7 +51,7 @@ app.use(
       return callback(error);
     },
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   })
 );

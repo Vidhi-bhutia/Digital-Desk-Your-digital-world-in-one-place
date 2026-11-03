@@ -45,8 +45,8 @@ export const RegisterPage = () => {
     setLoading(true);
     try {
       const res = await register(name, email, password);
-      toast.success(`Account created successfully! Welcome to Digital Desk, ${res.user.name}.`);
-      navigate('/dashboard');
+      toast.success('Account created. Verify your email to continue.');
+      navigate(`/verify-email?email=${encodeURIComponent(res.email || email)}`);
     } catch (err) {
       setError(err.message || 'Registration failed. Please try again.');
     } finally {

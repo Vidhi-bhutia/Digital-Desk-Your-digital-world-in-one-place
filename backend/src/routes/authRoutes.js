@@ -10,6 +10,11 @@ const {
   listSessions,
   logoutOtherSessions,
   deleteAccount,
+  requestAccountDeletionOtp,
+  requestEmailVerification,
+  verifyEmail,
+  requestPhoneVerification,
+  verifyPhone,
   forgotPassword,
   resetPassword,
   githubAuth,
@@ -27,6 +32,8 @@ router.post('/register', authRateLimiter, register);
 router.post('/login', authRateLimiter, login);
 router.post('/forgot-password', authRateLimiter, forgotPassword);
 router.post('/reset-password', authRateLimiter, resetPassword);
+router.post('/email-verification/request', authRateLimiter, requestEmailVerification);
+router.post('/email-verification/verify', authRateLimiter, verifyEmail);
 
 // Real OAuth 2.0 Sign-In Routes
 router.get('/github', requireAuth, githubAuth);
@@ -46,5 +53,8 @@ router.put('/password', requireAuth, changePassword);
 router.get('/sessions', requireAuth, listSessions);
 router.delete('/sessions/others', requireAuth, logoutOtherSessions);
 router.delete('/account', requireAuth, deleteAccount);
+router.post('/account/delete-otp', requireAuth, authRateLimiter, requestAccountDeletionOtp);
+router.post('/phone/verification/request', requireAuth, authRateLimiter, requestPhoneVerification);
+router.post('/phone/verification/verify', requireAuth, authRateLimiter, verifyPhone);
 
 module.exports = router;

@@ -2,6 +2,15 @@ const nodemailer = require('nodemailer');
 const config = require('../config/env');
 const logger = require('../utils/logger');
 
+const escapeHtml = value => String(value || '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+const brandedEmail = ({ title, greeting, message, code, note }) => `<!doctype html><html><body style="margin:0;padding:24px;background:#f4f7f4;font-family:Arial,Helvetica,sans-serif;color:#14231b"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#fff;border:1px solid #dce8df;border-radius:16px;overflow:hidden"><tr><td style="background:#0b3b24;color:#fff;padding:24px 28px"><div style="font-size:22px;font-weight:700">Digital Desk</div><div style="font-size:13px;color:#cce5d5;margin-top:4px">Your digital world, in one place</div></td></tr><tr><td style="padding:28px"><h1 style="font-size:21px;margin:0 0 12px;color:#14231b">${escapeHtml(title)}</h1><p style="font-size:15px;line-height:1.6;margin:0 0 12px">${escapeHtml(greeting)}</p><p style="font-size:14px;line-height:1.6;color:#475569;margin:0 0 18px">${escapeHtml(message)}</p>${code ? `<div style="background:#e8f5eb;border:1px solid #b9dfc5;border-radius:12px;color:#0b3b24;text-align:center;font-size:30px;font-weight:700;letter-spacing:8px;padding:16px;margin:20px 0">${escapeHtml(code)}</div>` : ''}<p style="font-size:12px;line-height:1.5;color:#64748b;margin:18px 0 0">${escapeHtml(note || 'If you did not request this, you can ignore this email.')}</p></td></tr><tr><td style="background:#f3f7f4;padding:16px 28px;color:#64748b;font-size:11px">&copy; ${new Date().getFullYear()} Digital Desk &middot; This is an automated account security email.</td></tr></table></td></tr></table></body></html>`;
+const sendBrandedOtp = async (user, subject, title, message, code) => {
+  try { const transporter = createTransporter(); if (!transporter) { if (config.nodeEnv === 'development') { logger.info(`[DEV EMAIL SIMULATION] ${subject} for ${user.email}: ${code}`); return true; } logger.error(`Cannot send ${subject} to ${user.email}: SMTP is not configured.`); return false; } await transporter.sendMail({ from: config.smtp.from, to: user.email, subject, html: brandedEmail({ title, greeting: `Hello ${user.name},`, message, code, note: 'This code expires in 10 minutes. Never share it with anyone.' }) }); return true; }
+  catch (error) { logger.error(`Failed to send ${subject} to ${user.email}:`, error); return false; }
+};
+const sendEmailVerificationOtp = (user, code) => sendBrandedOtp(user, 'Verify your Digital Desk email', 'Verify your email address', 'Enter this one-time code in Digital Desk to confirm that this email address belongs to you.', code);
+const sendAccountDeletionOtp = (user, code) => sendBrandedOtp(user, 'Confirm Digital Desk account deletion', 'Confirm account deletion', 'A request was made to permanently delete your Digital Desk account and its workspace data. Enter this one-time code to confirm the request.', code);
+
 // Create reusable transporter
 const createTransporter = () => {
   if (!config.smtp.user || config.smtp.user.includes('your_email')) {
@@ -65,7 +74,7 @@ const sendWelcomeEmail = async (user) => {
           </div>
         </div>
         <div class="footer">
-          © ${new Date().getFullYear()} Digital Desk. All rights reserved.
+          &copy; ${new Date().getFullYear()} Digital Desk. All rights reserved.
         </div>
       </div>
     </body>
@@ -96,7 +105,9 @@ const sendWelcomeEmail = async (user) => {
  * Send 6-digit OTP verification email for Password Reset
  */
 const sendOtpEmail = async (user, otpCode) => {
-  const subject = `Your Digital Desk Password Reset OTP: ${otpCode}`;
+  return sendBrandedOtp(user, 'Reset your Digital Desk password', 'Password reset request', 'Enter this one-time code in Digital Desk to reset your password.', otpCode);
+  /*
+  const subject = `Your Digital Desk Password Reset OTP`;
   const html = `
     <!DOCTYPE html>
     <html>
@@ -107,7 +118,7 @@ const sendOtpEmail = async (user, otpCode) => {
         .container { max-width: 550px; margin: 30px auto; background: #ffffff; border-radius: 16px; border: 1px solid #E2E8F0; overflow: hidden; box-shadow: 0 4px 12px rgba(15,81,50,0.06); }
         .header { background: #0B3B24; padding: 28px 24px; text-align: center; color: #ffffff; }
         .content { padding: 32px 24px; text-align: center; }
-        .otp-box { display: inline-block; background-color: #E8F5EB; border: 2px stroke #10B981; color: #0B3B24; font-size: 36px; font-weight: 800; letter-spacing: 8px; padding: 16px 32px; border-radius: 12px; margin: 20px 0; }
+        .otp-box { display: inline-block; background-color: #E8F5EB; border: 2px solid #10B981; color: #0B3B24; font-size: 36px; font-weight: 800; letter-spacing: 8px; padding: 16px 32px; border-radius: 12px; margin: 20px 0; }
         .footer { background: #F1F5F2; padding: 16px; text-align: center; font-size: 12px; color: #64748B; }
       </style>
     </head>
@@ -132,7 +143,7 @@ const sendOtpEmail = async (user, otpCode) => {
           </p>
         </div>
         <div class="footer">
-          © ${new Date().getFullYear()} Digital Desk. All rights reserved.
+          &copy; ${new Date().getFullYear()} Digital Desk. All rights reserved.
         </div>
       </div>
     </body>
@@ -157,13 +168,15 @@ const sendOtpEmail = async (user, otpCode) => {
     logger.error(`Failed to send OTP email to ${user.email}:`, error);
     return false;
   }
+  */
 };
 
 const sendNotificationEmail = async (user, notification) => {
   const transporter = createTransporter();
   if (!transporter) return false;
   try {
-    await transporter.sendMail({ from: config.smtp.from, to: user.email, subject: `Digital Desk: ${notification.title}`, text: `${notification.message || notification.title}\n\nOpen Digital Desk: ${config.frontendUrl}${notification.link || '/'}` });
+    const html = brandedEmail({ title: notification.title, greeting: `Hello ${user.name},`, message: notification.message || notification.title, note: `Open Digital Desk to view this update: ${config.frontendUrl}${notification.link || '/'}` });
+    await transporter.sendMail({ from: config.smtp.from, to: user.email, subject: `Digital Desk: ${notification.title}`, html, text: `${notification.message || notification.title}\n\nOpen Digital Desk: ${config.frontendUrl}${notification.link || '/'}` });
     return true;
   } catch (error) { logger.error(`Notification email failed for ${user.email}:`, error); return false; }
 };
@@ -172,4 +185,6 @@ module.exports = {
   sendWelcomeEmail,
   sendOtpEmail,
   sendNotificationEmail,
+  sendEmailVerificationOtp,
+  sendAccountDeletionOtp,
 };

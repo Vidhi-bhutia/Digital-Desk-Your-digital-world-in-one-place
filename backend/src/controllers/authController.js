@@ -2,7 +2,7 @@ const validator = require('validator');
 const User = require('../models/User');
 const { generateToken } = require('../utils/jwt');
 const { generateResetToken, generateOtp, hashToken, seal } = require('../utils/crypto');
-const { sendWelcomeEmail, sendOtpEmail } = require('../services/emailService');
+const { sendWelcomeEmail, sendOtpEmail, sendEmailVerificationOtp, sendAccountDeletionOtp } = require('../services/emailService');
 const config = require('../config/env');
 const logger = require('../utils/logger');
 const AuthSession = require('../models/AuthSession');
@@ -10,6 +10,13 @@ const Notification = require('../models/Notification');
 const Task = require('../models/Task');
 const CalendarEvent = require('../models/CalendarEvent');
 const { notifyIfAllowed } = require('./notificationController');
+const normalizePhone = value => String(value || '').replace(/[\s().-]/g, '');
+const phoneAlreadyUsed = async (phone, exceptUserId) => {
+  if (await User.exists({ phoneNormalized: phone, _id: { $ne: exceptUserId } })) return true;
+  if (await User.exists({ pendingPhone: phone, _id: { $ne: exceptUserId } })) return true;
+  const users = await User.find({ phone: { $nin: ['', null] }, _id: { $ne: exceptUserId } }).select('phone +phoneNormalized').lean();
+  return users.some(user => normalizePhone(user.phoneNormalized || user.phone) === phone);
+};
 
 const issueSession = async (user, req) => {
   const tokenId = require('crypto').randomUUID();
@@ -63,19 +70,16 @@ const register = async (req, res, next) => {
       email: normalizedEmail,
       passwordHash,
     });
-
-    sendWelcomeEmail(user).catch(err => logger.error('Async welcome email send error:', err));
-
-    const token = await issueSession(user, req);
-    sendAuthCookie(res, token);
-
-    logger.info(`User registered & welcome email dispatched: ${user.email}`);
+    const emailCode = generateOtp(); user.emailVerificationOtpHash = hashToken(emailCode); user.emailVerificationOtpExpires = new Date(Date.now() + 10 * 60 * 1000); await user.save();
+    const delivered = await sendEmailVerificationOtp(user, emailCode);
+    logger.info(`New account created; email verification required: ${user.email}`);
 
     return res.status(201).json({
       success: true,
-      message: 'Account created successfully. Welcome email sent!',
-      user: user.toAuthUser(),
-      token,
+      message: delivered ? 'Account created. Verify your email to continue.' : 'Account created, but email delivery is not configured. Ask an administrator to configure email delivery.',
+      verificationRequired: true,
+      email: user.email,
+      emailSent: delivered,
     });
   } catch (error) {
     next(error);
@@ -103,6 +107,12 @@ const login = async (req, res, next) => {
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
       return res.status(401).json({ success: false, message: 'Invalid email or password.', code: 'INVALID_CREDENTIALS' });
+    }
+
+    if (!user.emailVerifiedAt) {
+      const code = generateOtp(); user.emailVerificationOtpHash = hashToken(code); user.emailVerificationOtpExpires = new Date(Date.now() + 10 * 60 * 1000); await user.save();
+      const sent = await sendEmailVerificationOtp(user, code);
+      return res.status(403).json({ success: false, code: 'EMAIL_UNVERIFIED', email: user.email, message: sent ? 'Verify your email before signing in. We sent a new code.' : 'Your email is not verified and email delivery is not configured.' });
     }
 
     const token = await issueSession(user, req);
@@ -152,9 +162,61 @@ const getMe = async (req, res) => {
   });
 };
 
+const requestEmailVerification = async (req, res, next) => {
+  try {
+    const email = String(req.body.email || '').trim().toLowerCase();
+    if (!validator.isEmail(email)) return res.status(400).json({ success: false, message: 'Enter a valid email address.' });
+    const user = await User.findOne({ email }).select('+emailVerificationOtpHash +emailVerificationOtpExpires');
+    if (!user || user.emailVerifiedAt) return res.json({ success: true, message: 'If the address needs verification, a code has been sent.' });
+    const code = generateOtp(); user.emailVerificationOtpHash = hashToken(code); user.emailVerificationOtpExpires = new Date(Date.now() + 10 * 60 * 1000); await user.save();
+    const sent = await sendEmailVerificationOtp(user, code);
+    if (!sent) return res.status(503).json({ success: false, message: 'Email delivery is not configured. Contact the administrator to enable verification email.' });
+    res.json({ success: true, message: 'A verification code was sent to your email.' });
+  } catch (e) { next(e); }
+};
+
+const verifyEmail = async (req, res, next) => {
+  try {
+    const email = String(req.body.email || '').trim().toLowerCase(); const otp = String(req.body.otp || '').trim();
+    if (!validator.isEmail(email) || !/^\d{6}$/.test(otp)) return res.status(400).json({ success: false, message: 'Enter your email and the 6-digit verification code.' });
+    const user = await User.findOne({ email, emailVerificationOtpHash: hashToken(otp), emailVerificationOtpExpires: { $gt: new Date() } }).select('+emailVerificationOtpHash +emailVerificationOtpExpires');
+    if (!user) return res.status(400).json({ success: false, code: 'INVALID_OTP', message: 'That verification code is invalid or expired.' });
+    user.emailVerifiedAt = new Date(); user.emailVerificationOtpHash = null; user.emailVerificationOtpExpires = null; await user.save();
+    const token = await issueSession(user, req); sendAuthCookie(res, token);
+    sendWelcomeEmail(user).catch(err => logger.error('Async welcome email send error:', err));
+    res.json({ success: true, message: 'Email verified successfully.', user: user.toAuthUser(), token });
+  } catch (e) { next(e); }
+};
+
+const requestPhoneVerification = async (req, res, next) => {
+  try {
+    const phone = normalizePhone(req.body.phone);
+    if (!/^\+[1-9]\d{7,14}$/.test(phone)) return res.status(400).json({ success: false, message: 'Enter a valid phone number with its country code, for example +919876543210.' });
+    if (await phoneAlreadyUsed(phone, req.user._id)) return res.status(409).json({ success: false, message: 'That phone number is already in use on another account.' });
+    const code = generateOtp();
+    await require('../services/smsService').sendVerificationCode(phone, code, 'verify your phone number');
+    const user = await User.findById(req.user._id).select('+pendingPhone +phoneVerificationOtpHash +phoneVerificationOtpExpires');
+    user.pendingPhone = phone; user.phoneVerificationOtpHash = hashToken(code); user.phoneVerificationOtpExpires = new Date(Date.now() + 10 * 60 * 1000); await user.save();
+    res.json({ success: true, message: 'A verification code was sent by SMS.' });
+  } catch (e) { next(e); }
+};
+
+const verifyPhone = async (req, res, next) => {
+  try {
+    const otp = String(req.body.otp || '').trim(); if (!/^\d{6}$/.test(otp)) return res.status(400).json({ success: false, message: 'Enter the 6-digit SMS code.' });
+    const user = await User.findById(req.user._id).select('+pendingPhone +phoneVerificationOtpHash +phoneVerificationOtpExpires +phoneNormalized');
+    if (!user?.pendingPhone || user.phoneVerificationOtpHash !== hashToken(otp) || !user.phoneVerificationOtpExpires || user.phoneVerificationOtpExpires <= new Date()) return res.status(400).json({ success: false, code: 'INVALID_OTP', message: 'That phone verification code is invalid or expired.' });
+    if (await phoneAlreadyUsed(user.pendingPhone, user._id)) return res.status(409).json({ success: false, message: 'That phone number is already in use on another account.' });
+    user.phone = user.pendingPhone; user.phoneNormalized = user.pendingPhone; user.phoneVerifiedAt = new Date(); user.pendingPhone = ''; user.phoneVerificationOtpHash = null; user.phoneVerificationOtpExpires = null;
+    try { await user.save(); } catch (e) { if (e.code === 11000) return res.status(409).json({ success: false, message: 'That phone number is already in use on another account.' }); throw e; }
+    res.json({ success: true, message: 'Phone number verified.', user: user.toAuthUser() });
+  } catch (e) { next(e); }
+};
+
 const updateProfile = async (req, res, next) => {
   try {
     const { name, email, phone, avatar, currentPassword } = req.body;
+    const emailChanged = typeof email === 'string' && email.toLowerCase().trim() !== req.user.email;
     if (name !== undefined) {
       if (typeof name !== 'string' || !name.trim()) return res.status(400).json({ success: false, message: 'Name is required.' });
       req.user.name = name.trim();
@@ -169,11 +231,7 @@ const updateProfile = async (req, res, next) => {
       req.user.email = normalizedEmail;
       req.user.emailVerifiedAt = null;
     }
-    if (phone !== undefined) {
-      const normalizedPhone = String(phone).trim();
-      if (normalizedPhone && !/^\+?[0-9\s().-]{7,24}$/.test(normalizedPhone)) return res.status(400).json({ success: false, message: 'Enter a valid phone number.' });
-      req.user.phone = normalizedPhone;
-    }
+    if (phone !== undefined && normalizePhone(phone) !== normalizePhone(req.user.phone) && normalizePhone(phone)) return res.status(400).json({ success: false, message: 'Verify a phone number before saving it.' });
     if (avatar !== undefined) {
       if (avatar && (!/^data:image\/(png|jpeg|webp|gif);base64,/.test(avatar) || avatar.length > 4_000_000)) return res.status(400).json({ success: false, message: 'Upload a supported image smaller than 3 MB.' });
       req.user.avatar = avatar || '';
@@ -183,8 +241,13 @@ const updateProfile = async (req, res, next) => {
       req.user.notificationPreferences = { ...(req.user.notificationPreferences || {}), ...incoming, categories: { ...(req.user.notificationPreferences?.categories || {}), ...(incoming.categories || {}) } };
     }
     await req.user.save();
+    let verificationRequired = false; let verificationEmailSent = true;
+    if (emailChanged) {
+      const code = generateOtp(); req.user.emailVerificationOtpHash = hashToken(code); req.user.emailVerificationOtpExpires = new Date(Date.now() + 10 * 60 * 1000); await req.user.save();
+      verificationEmailSent = await sendEmailVerificationOtp(req.user, code); verificationRequired = true;
+    }
     await notifyIfAllowed(req.user, { category: 'security', title: 'Account profile updated', message: 'Your account information was changed.', link: '/profile', dedupeKey: `profile:${req.user.updatedAt?.getTime() || Date.now()}` });
-    res.json({ success: true, user: req.user.toAuthUser() });
+    res.json({ success: true, user: req.user.toAuthUser(), verificationRequired, verificationEmailSent });
   } catch (error) { next(error); }
 };
 
@@ -204,11 +267,22 @@ const changePassword = async (req, res, next) => {
 
 const listSessions = async (req, res, next) => { try { const sessions = await AuthSession.find({ userId: req.user._id, expiresAt: { $gt: new Date() } }).sort({ lastSeenAt: -1 }).lean(); res.json({ success: true, sessions: sessions.map(s => ({ id: s._id, device: s.device, ip: s.ip, lastSeenAt: s.lastSeenAt, current: s.tokenId === req.authSessionId })) }); } catch (e) { next(e); } };
 const logoutOtherSessions = async (req, res, next) => { try { if (req.authSessionId) await AuthSession.deleteMany({ userId: req.user._id, tokenId: { $ne: req.authSessionId } }); res.json({ success: true }); } catch (e) { next(e); } };
+const requestAccountDeletionOtp = async (req, res, next) => {
+  try {
+    if (req.body.confirmation !== true || !req.body.currentPassword) return res.status(400).json({ success: false, message: 'Confirm deletion and enter your current password first.' });
+    const user = await User.findById(req.user._id).select('+passwordHash +accountDeletionOtpHash +accountDeletionOtpExpires');
+    if (!await user.comparePassword(req.body.currentPassword)) return res.status(401).json({ success: false, message: 'Current password is incorrect.' });
+    const code = generateOtp(); user.accountDeletionOtpHash = hashToken(code); user.accountDeletionOtpExpires = new Date(Date.now() + 10 * 60 * 1000); await user.save();
+    if (!await sendAccountDeletionOtp(user, code)) return res.status(503).json({ success: false, message: 'Email delivery is not configured. Contact the administrator to enable deletion verification.' });
+    res.json({ success: true, message: `A confirmation code was sent to ${user.email}.` });
+  } catch (e) { next(e); }
+};
 const deleteAccount = async (req, res, next) => {
   try {
-    if (req.body.confirmation !== 'DELETE' || !req.body.currentPassword) return res.status(400).json({ success: false, message: 'Type DELETE and enter your password to confirm account removal.' });
-    const account = await User.findById(req.user._id).select('+passwordHash +googleAccessToken +googleRefreshToken +githubAccessToken');
+    if (req.body.confirmation !== true || !req.body.currentPassword || !/^\d{6}$/.test(String(req.body.otp || ''))) return res.status(400).json({ success: false, message: 'Confirm deletion, enter your password, and provide the email code.' });
+    const account = await User.findById(req.user._id).select('+passwordHash +googleAccessToken +googleRefreshToken +githubAccessToken +accountDeletionOtpHash +accountDeletionOtpExpires');
     if (!await account.comparePassword(req.body.currentPassword)) return res.status(401).json({ success: false, message: 'Current password is incorrect.' });
+    if (!account.accountDeletionOtpHash || account.accountDeletionOtpHash !== hashToken(String(req.body.otp)) || !account.accountDeletionOtpExpires || account.accountDeletionOtpExpires <= new Date()) return res.status(400).json({ success: false, message: 'The email code is invalid or expired.' });
     const { unseal } = require('../utils/crypto');
     if (account.googleRefreshToken || account.googleAccessToken) { const token = account.googleRefreshToken ? unseal(account.googleRefreshToken) : unseal(account.googleAccessToken); if (token) await fetch('https://oauth2.googleapis.com/revoke', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ token }) }).catch(() => {}); }
     if (account.githubAccessToken) { const token = unseal(account.githubAccessToken); if (token) await fetch('https://api.github.com/applications/' + config.github.clientId + '/grant', { method: 'DELETE', headers: { Accept: 'application/vnd.github+json', Authorization: `Basic ${Buffer.from(`${config.github.clientId}:${config.github.clientSecret}`).toString('base64')}`, 'Content-Type': 'application/json', 'X-GitHub-Api-Version': '2022-11-28' }, body: JSON.stringify({ access_token: token }) }).catch(() => {}); }
@@ -466,25 +540,29 @@ const googleCallback = async (req, res, next) => {
     });
 
     const googleProfile = await userResponse.json();
+    if (!googleProfile.email || !validator.isEmail(googleProfile.email)) return res.redirect(`${config.frontendUrl}/login?error=google_email`);
     const targetEmail = googleProfile.email.toLowerCase();
+    const googleEmailVerified = googleProfile.verified_email === true;
 
     let user = await User.findOne({ email: targetEmail });
     if (!user) {
       user = await User.create({
         name: googleProfile.name,
         email: targetEmail,
+        emailVerifiedAt: googleEmailVerified ? new Date() : null,
         passwordHash: await User.hashPassword(generateOtp() + 'GoogleAuth!'),
         avatar: googleProfile.picture,
         googleEmail: targetEmail,
         googleAccessToken: seal(accessToken),
         googleRefreshToken: refreshToken ? seal(refreshToken) : '',
       });
-      sendWelcomeEmail(user).catch(() => {});
+      if (googleEmailVerified) sendWelcomeEmail(user).catch(() => {});
     } else {
       user.googleEmail = targetEmail;
       user.googleAccessToken = seal(accessToken);
       if (refreshToken) user.googleRefreshToken = seal(refreshToken);
       if (googleProfile.picture) user.avatar = googleProfile.picture;
+      if (googleEmailVerified && !user.emailVerifiedAt) user.emailVerifiedAt = new Date();
       await user.save();
     }
 
@@ -539,7 +617,12 @@ module.exports = {
   changePassword,
   listSessions,
   logoutOtherSessions,
+  requestAccountDeletionOtp,
   deleteAccount,
+  requestEmailVerification,
+  verifyEmail,
+  requestPhoneVerification,
+  verifyPhone,
   forgotPassword,
   resetPassword,
   githubAuth,

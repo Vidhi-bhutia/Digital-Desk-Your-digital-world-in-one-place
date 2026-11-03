@@ -75,7 +75,7 @@ export const AuthProvider = ({ children }) => {
     register,
     logout,
     refreshUser,
-    updateUser: async (updates) => { const body = await apiClient('/auth/profile', { method: 'PUT', body: updates }); setUser(body.user); return body.user; },
+    updateUser: async (updates) => { const body = await apiClient('/auth/profile', { method: 'PUT', body: updates }); setUser(body.user); return body; },
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

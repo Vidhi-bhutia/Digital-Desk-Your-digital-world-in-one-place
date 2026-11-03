@@ -8,6 +8,7 @@ import LoginPage from '../pages/auth/LoginPage';
 import RegisterPage from '../pages/auth/RegisterPage';
 import ForgotPasswordPage from '../pages/auth/ForgotPasswordPage';
 import ResetPasswordPage from '../pages/auth/ResetPasswordPage';
+import VerifyEmailPage from '../pages/auth/VerifyEmailPage';
 
 // App Pages
 import DashboardPage from '../pages/dashboard/DashboardPage';
@@ -57,6 +58,7 @@ export const AppRoutes = () => {
           </PublicOnlyRoute>
         }
       />
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
 
       {/* Protected App Shell Routes */}
       <Route

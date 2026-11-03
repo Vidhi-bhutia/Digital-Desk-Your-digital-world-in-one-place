@@ -36,6 +36,7 @@ export const LoginPage = () => {
       toast.success(`Welcome back, ${res.user.name}!`);
       navigate('/dashboard');
     } catch (err) {
+      if (err.code === 'EMAIL_UNVERIFIED') { navigate(`/verify-email?email=${encodeURIComponent(err.details?.email || email)}`); return; }
       setError(err.message || 'Invalid email or password. Please try again.');
     } finally {
       setLoading(false);

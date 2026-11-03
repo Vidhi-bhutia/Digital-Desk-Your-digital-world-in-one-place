@@ -4,10 +4,18 @@ const path = require('path');
 // Load environment variables from .env file
 dotenv.config({ path: path.join(__dirname, '../../.env') });
 
+const frontendUrls = (process.env.FRONTEND_URL || 'http://localhost:5173')
+  .split(',')
+  .map((url) => url.trim().replace(/\/$/, ''))
+  .filter(Boolean);
+
 const config = {
   port: process.env.PORT || 5000,
   nodeEnv: process.env.NODE_ENV || 'development',
-  frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
+  // FRONTEND_URL can contain multiple comma-separated CORS origins. Redirects
+  // and links must use a single valid absolute URL, so use the first entry.
+  frontendUrl: frontendUrls[0] || 'http://localhost:5173',
+  frontendUrls,
   backendUrl: process.env.BACKEND_URL || 'http://localhost:5000',
   mongoUri: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/digitaldesk',
   jwtSecret: process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? '' : 'digitaldesk_jwt_secret_fallback'),
@@ -21,6 +29,7 @@ const config = {
     pass: process.env.SMTP_PASS || '',
     from: process.env.SMTP_FROM || '"Digital Desk" <noreply@digitaldesk.app>',
   },
+  twilio: { accountSid: process.env.TWILIO_ACCOUNT_SID || '', authToken: process.env.TWILIO_AUTH_TOKEN || '', fromNumber: process.env.TWILIO_FROM_NUMBER || '' },
   github: {
     clientId: process.env.GITHUB_CLIENT_ID,
     clientSecret: process.env.GITHUB_CLIENT_SECRET,

@@ -45,6 +45,9 @@ const requireAuth = async (req, res, next) => {
         code: 'USER_NOT_FOUND',
       });
     }
+    const authMaintenancePaths = ['/me', '/email-verification/request', '/email-verification/verify', '/profile', '/password', '/sessions', '/sessions/others', '/account', '/account/delete-otp'];
+    const isEmailVerificationRoute = req.baseUrl.endsWith('/auth') && authMaintenancePaths.includes(req.path);
+    if (!user.emailVerifiedAt && !isEmailVerificationRoute) return res.status(403).json({ success: false, message: 'Verify your email before continuing.', code: 'EMAIL_UNVERIFIED', email: user.email });
 
     // Upgrade older non-session JWTs in place so existing signed-in users are
     // visible in the session list and can revoke sessions immediately.

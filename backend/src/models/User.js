@@ -21,7 +21,16 @@ const userSchema = new mongoose.Schema(
       ],
     },
     phone: { type: String, default: '', trim: true, maxlength: 24 },
+    phoneNormalized: { type: String, default: null, select: false },
+    phoneVerifiedAt: { type: Date, default: null },
+    pendingPhone: { type: String, default: '', select: false },
+    phoneVerificationOtpHash: { type: String, default: null, select: false },
+    phoneVerificationOtpExpires: { type: Date, default: null, select: false },
     emailVerifiedAt: { type: Date, default: null },
+    emailVerificationOtpHash: { type: String, default: null, select: false },
+    emailVerificationOtpExpires: { type: Date, default: null, select: false },
+    accountDeletionOtpHash: { type: String, default: null, select: false },
+    accountDeletionOtpExpires: { type: Date, default: null, select: false },
     notificationPreferences: { type: mongoose.Schema.Types.Mixed, default: () => ({ enabled: true, inApp: true, email: false, desktop: false, sound: false, categories: { tasks: true, integrations: true, security: true, system: true }, completedTasks: false }) },
     passwordHash: {
       type: String,
@@ -59,6 +68,8 @@ userSchema.pre('save', function (next) {
   next();
 });
 
+userSchema.index({ phoneNormalized: 1 }, { unique: true, partialFilterExpression: { phoneVerifiedAt: { $type: 'date' } } });
+
 // Compare password instance method
 userSchema.methods.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.passwordHash);
@@ -80,6 +91,7 @@ userSchema.methods.toAuthUser = function () {
     emailVerifiedAt: this.emailVerifiedAt || null,
     notificationPreferences: this.notificationPreferences || { enabled: true, inApp: true, email: false, desktop: false, sound: false, categories: { tasks: true, integrations: true, security: true, system: true }, completedTasks: false },
     phone: this.phone || '',
+    phoneVerifiedAt: this.phoneVerifiedAt || null,
     avatar: this.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(this.name)}&background=0F5132&color=fff`,
     githubUsername: this.githubUsername || '',
     googleEmail: this.googleEmail || '',
