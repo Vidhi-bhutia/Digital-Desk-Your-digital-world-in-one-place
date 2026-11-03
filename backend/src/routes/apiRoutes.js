@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { requireAuth } = require('../middleware/authMiddleware');
 
-const { getTasks, createTask, updateTask, deleteTask } = require('../controllers/taskController');
+const { getTasks, createTask, updateTask, deleteTask, addTaskToGoogleCalendar } = require('../controllers/taskController');
 const { getCalendarEvents, createCalendarEvent } = require('../controllers/calendarController');
 const { getGmailSummary } = require('../controllers/gmailController');
 const { getGitHubSummary } = require('../controllers/githubController');
@@ -31,6 +31,7 @@ router.get('/tasks', getTasks);
 router.post('/tasks', createTask);
 router.put('/tasks/:id', updateTask);
 router.delete('/tasks/:id', deleteTask);
+router.post('/tasks/:id/google-calendar', addTaskToGoogleCalendar);
 
 // Calendar API
 router.get('/calendar/events', getCalendarEvents);

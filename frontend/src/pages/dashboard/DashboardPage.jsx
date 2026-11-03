@@ -36,6 +36,7 @@ export const DashboardPage = () => {
 
   const [isAddTaskOpen, setIsAddTaskOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [calendarTaskBusy, setCalendarTaskBusy] = useState('');
 
   // Fetch tasks
   const fetchTasks = useCallback(async (filter = activeTaskTab) => {
@@ -55,7 +56,7 @@ export const DashboardPage = () => {
   }, [fetchTasks, activeTaskTab]);
 
   useEffect(() => {
-    apiClient('/activity').then(res => { if (res?.activities) { setActivities(res.activities); setGithubCount(res.summary?.githubRecent7d ?? 0); setActivityStatus('ready'); } }).catch(e => { setProviderErrors(x => ({...x, activity: e.message})); setActivityStatus('error'); });
+    apiClient('/activity').then(res => { if (res?.activities) { setActivities(res.activities); setGithubCount(res.providers?.github ? null : (res.summary?.githubRecent7d ?? 0)); if (res.providers?.github) setProviderErrors(x => ({...x, github: res.providers.github})); setActivityStatus('ready'); } }).catch(e => { setProviderErrors(x => ({...x, activity: e.message})); setActivityStatus('error'); });
     apiClient('/gmail/summary').then(res => setUnreadCount(res.summary?.unreadEmails ?? null)).catch(e => { setUnreadCount(null); setProviderErrors(x => ({...x, gmail: e.message})); });
 
     // Fetch Up Next / Calendar events
@@ -104,6 +105,12 @@ export const DashboardPage = () => {
     } catch (err) {
       throw err;
     }
+  };
+  const handleAddTaskToCalendar = async task => {
+    setCalendarTaskBusy(task._id);
+    try { const result = await apiClient(`/tasks/${task._id}/google-calendar`, { method: 'POST' }); toast.success(result.alreadyAdded ? 'This task is already in Google Calendar.' : 'Task added to Google Calendar.'); await fetchTasks(activeTaskTab); }
+    catch (error) { toast.error(error.message || 'Could not add task to Google Calendar.'); }
+    finally { setCalendarTaskBusy(''); }
   };
 
   return (
@@ -164,6 +171,8 @@ export const DashboardPage = () => {
               activeTab={activeTaskTab}
               onTabChange={handleTabChange}
               onToggleTask={handleToggleTask}
+              onAddToCalendar={handleAddTaskToCalendar}
+              calendarBusyId={calendarTaskBusy}
               onOpenAddTask={() => setIsAddTaskOpen(true)}
               onNavigate={(path) => navigate(path)}
             />

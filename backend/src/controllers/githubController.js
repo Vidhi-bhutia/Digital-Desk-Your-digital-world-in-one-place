@@ -10,7 +10,7 @@ const githubFetch = async (user, path) => {
 const getGitHubActivity = async (user) => {
   const [repos, events] = await Promise.all([
     githubFetch(user, '/user/repos?sort=updated&per_page=10'),
-    githubFetch(user, '/user/events?per_page=100'),
+    githubFetch(user, `/users/${encodeURIComponent(user.githubUsername)}/events?per_page=100`),
   ]);
   const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
   const activities = events.filter(event => new Date(event.created_at).getTime() >= cutoff).map(event => ({

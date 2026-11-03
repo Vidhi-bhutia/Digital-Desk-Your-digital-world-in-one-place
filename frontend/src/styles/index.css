@@ -142,8 +142,9 @@ h1, h2, h3, h4, h5, h6 {
   font-size: 10px;
 }
 .search-tab.active span { color: white; background: var(--color-brand); }
-.search-sections-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; }
-.search-source-section { min-width: 0; }
+.search-sections-grid { display: flex; flex-direction: column; gap: 24px; }
+.search-source-section { min-width: 0; width: 100%; }
+.search-results-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,420px),1fr)); gap: 8px; align-items: start; }
 .search-source-section header { display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin:4px 2px 8px; }
 .search-source-section header h2 { margin:0; color:var(--color-text); font:700 16px var(--font-heading); }
 .search-source-section header span { color:var(--color-text-subtle); font-size:11px; }
@@ -152,7 +153,7 @@ h1, h2, h3, h4, h5, h6 {
   align-items:flex-start;
   gap:10px;
   padding:12px;
-  margin-bottom:7px;
+  margin:0;
   border:1px solid var(--color-border-subtle);
   border-radius:var(--radius-md);
   background:var(--color-bg);
@@ -169,7 +170,9 @@ h1, h2, h3, h4, h5, h6 {
 .search-source-error { padding:11px 13px; margin:8px 0; border:1px solid var(--color-warning-border); border-radius:var(--radius-md); background:var(--color-warning-bg); color:var(--color-text); font-size:12px; line-height:1.5; }
 .search-source-error a { margin-left:8px; color:var(--color-brand); font-weight:700; }
 .search-spin { animation:spin .8s linear infinite; }
-@media (max-width: 760px) { .search-sections-grid { grid-template-columns:1fr; } }
+@media (max-width: 760px) { .search-results-grid { grid-template-columns:1fr; } }
+
+.task-calendar-link { display:inline-flex; align-items:center; min-height:36px; padding:6px 11px; border:1px solid var(--color-success-border); border-radius:var(--radius-md); background:var(--color-success-bg); color:var(--color-brand); font-size:12px; font-weight:700; text-decoration:none; white-space:nowrap; }
 
 .dd-music-bar > div { min-width: 0; }
 @media (max-width: 760px) {

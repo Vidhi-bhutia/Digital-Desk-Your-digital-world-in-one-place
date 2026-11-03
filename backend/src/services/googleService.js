@@ -16,7 +16,11 @@ const getGoogleAccessToken = async (user) => {
   const response = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: config.google.clientId, client_secret: config.google.clientSecret, refresh_token: refreshToken, grant_type: 'refresh_token' }), signal: AbortSignal.timeout(8000) });
   const body = await response.json();
   if (!response.ok || !body.access_token) throw Object.assign(new Error('Google access expired or revoked. Reconnect Google.'), { status: 401 });
-  user.googleAccessToken = seal(body.access_token); await user.save();
+  const encryptedAccessToken = seal(body.access_token);
+  // Concurrent Gmail, Calendar, search and activity calls can refresh at once.
+  // Do not call save() on their shared Mongoose document in parallel.
+  await require('../models/User').updateOne({ _id: user._id }, { $set: { googleAccessToken: encryptedAccessToken } });
+  user.googleAccessToken = encryptedAccessToken;
   return body.access_token;
 };
 
@@ -24,7 +28,7 @@ const googleFetch = async (user, path, options = {}) => {
   const token = await getGoogleAccessToken(user);
   const response = await fetch(`${GOOGLE_API}${path}`, { ...options, headers: { Authorization: `Bearer ${token}`, ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...options.headers }, signal: AbortSignal.timeout(10000) });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw Object.assign(new Error(body.error?.message || `Google API request failed (${response.status}).`), { status: response.status === 403 ? 403 : response.status === 401 ? 401 : 502 });
+  if (!response.ok) throw Object.assign(new Error(body.error?.message || `Google API request failed (${response.status}).`), { status: response.status === 403 ? 403 : response.status === 401 ? 401 : response.status === 409 ? 409 : 502 });
   return body;
 };
 

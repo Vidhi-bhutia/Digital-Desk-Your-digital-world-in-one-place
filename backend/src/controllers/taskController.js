@@ -1,4 +1,7 @@
 const Task = require('../models/Task');
+const crypto = require('crypto');
+const { googleFetch } = require('../services/googleService');
+const User = require('../models/User');
 
 const getTasks = async (req, res, next) => {
   try {
@@ -62,4 +65,31 @@ const deleteTask = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
-module.exports = { getTasks, createTask, updateTask, deleteTask };
+const addTaskToGoogleCalendar = async (req, res, next) => {
+  try {
+    const task = await Task.findOne({ _id: req.params.id, userId: req.user._id });
+    if (!task) return res.status(404).json({ success: false, message: 'Task not found.' });
+    if (!task.dueDate) return res.status(400).json({ success: false, message: 'Add a task deadline before sending it to Google Calendar.' });
+    if (task.googleCalendarEventId) return res.json({ success: true, alreadyAdded: true, event: { id: task.googleCalendarEventId, htmlLink: task.googleCalendarEventUrl } });
+    const googleUser = await User.findById(req.user._id).select('+googleAccessToken +googleRefreshToken');
+    if (!googleUser?.googleAccessToken && !googleUser?.googleRefreshToken) return res.status(409).json({ success: false, message: 'Connect Google in Settings before adding tasks to Calendar.' });
+    const eventId = crypto.createHash('sha256').update(`digital-desk-task:${task._id}`).digest('hex');
+    const start = task.dueDate.toISOString();
+    const end = new Date(task.dueDate.getTime() + 30 * 60 * 1000).toISOString();
+    let event;
+    try {
+      event = await googleFetch(googleUser, '/calendar/v3/calendars/primary/events', { method: 'POST', body: JSON.stringify({ id: eventId, summary: task.title, description: task.description || 'Task created in Digital Desk.', start: { dateTime: start }, end: { dateTime: end } }) });
+    } catch (error) {
+      // Google may have created the event before a network timeout. The stable
+      // event ID makes retries idempotent; retrieve it instead of duplicating.
+      if (error.status !== 409) throw error;
+      event = await googleFetch(googleUser, `/calendar/v3/calendars/primary/events/${eventId}`);
+    }
+    task.googleCalendarEventId = event.id;
+    task.googleCalendarEventUrl = event.htmlLink || '';
+    await task.save();
+    res.json({ success: true, alreadyAdded: false, event: { id: event.id, htmlLink: event.htmlLink || '' } });
+  } catch (error) { next(error); }
+};
+
+module.exports = { getTasks, createTask, updateTask, deleteTask, addTaskToGoogleCalendar };

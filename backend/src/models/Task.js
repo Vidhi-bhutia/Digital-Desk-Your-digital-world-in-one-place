@@ -22,6 +22,8 @@ const taskSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    googleCalendarEventId: { type: String, default: '' },
+    googleCalendarEventUrl: { type: String, default: '' },
     priority: {
       type: String,
       enum: ['High', 'Medium', 'Low'],

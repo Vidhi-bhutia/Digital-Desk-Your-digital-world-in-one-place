@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, ArrowRight, Check } from 'lucide-react';
 import Badge from '../common/Badge';
+import { CalendarDays } from 'lucide-react';
 
 export const MyTasksWidget = ({
   tasks = [],
@@ -8,6 +9,8 @@ export const MyTasksWidget = ({
   activeTab = 'today',
   onTabChange,
   onToggleTask,
+  onAddToCalendar,
+  calendarBusyId,
   onOpenAddTask,
   onNavigate,
 }) => {
@@ -178,6 +181,7 @@ export const MyTasksWidget = ({
               <Badge variant={getPriorityVariant(task.priority)} size="sm">
                 {task.priority}
               </Badge>
+              {task.googleCalendarEventId ? <a className="task-calendar-link" href={task.googleCalendarEventUrl || 'https://calendar.google.com/calendar/u/0/r'} target="_blank" rel="noreferrer">In Calendar</a> : <button title={task.dueDate ? 'Add to Google Calendar' : 'Add a deadline first'} aria-label="Add task to Google Calendar" disabled={!task.dueDate || !onAddToCalendar || calendarBusyId===task._id} onClick={() => onAddToCalendar(task)} style={{width:32,height:32,display:'grid',placeItems:'center',border:'1px solid var(--color-border)',borderRadius:9,background:'var(--color-bg)',color:task.dueDate?'var(--color-brand)':'var(--color-text-subtle)',cursor:task.dueDate?'pointer':'not-allowed'}}><CalendarDays size={15}/></button>}
 
             </div>
           </div>
