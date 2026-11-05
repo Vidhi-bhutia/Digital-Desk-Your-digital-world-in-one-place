@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { 
   Play, 
   Pause, 
@@ -245,7 +245,7 @@ export const MusicPlayerBar = () => {
           <Maximize2 size={16} />
         </button>
       </div>
-      {libraryOpen && <div role="dialog" aria-label="Desk Radio library" style={{ position: 'absolute', right: 90, bottom: 'calc(100% + 10px)', width: 'min(360px, calc(100vw - 24px))', maxHeight: 360, overflowY: 'auto', background: '#0b2c1d', border: '1px solid rgba(255,255,255,.15)', borderRadius: 14, padding: 14, boxShadow: '0 12px 35px rgba(0,0,0,.35)' }}><strong style={{ display: 'block', marginBottom: 8 }}>Desk Radio · Hindustani music library</strong>{library.map(item => <div key={item.id} style={{ padding: '10px 8px', borderBottom: '1px solid rgba(255,255,255,.12)' }}><button onClick={() => { setAudioError(''); sendControl({ trackId: item.id }).catch(() => setAudioError('Could not load this track.')); setLibraryOpen(false); }} style={{ width: '100%', textAlign: 'left', border: 0, color: '#fff', background: 'transparent', cursor: 'pointer' }}><b>{item.title}</b></button><small style={{ display: 'flex', gap: 7, color: 'rgba(255,255,255,.65)' }}><a href={item.attributionUrl} target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>{item.artist}</a><a href={item.licenseUrl} target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>{item.license}</a></small></div>)}</div>}
+      {libraryOpen && <div role="dialog" aria-label="Desk Radio library" style={{ position: 'absolute', right: 90, bottom: 'calc(100% + 10px)', width: 'min(360px, calc(100vw - 24px))', maxHeight: 360, overflowY: 'auto', background: '#0b2c1d', border: '1px solid rgba(255,255,255,.15)', borderRadius: 14, padding: 14, boxShadow: '0 12px 35px rgba(0,0,0,.35)' }}><strong style={{ display: 'block', marginBottom: 8 }}>Desk Radio - Music library</strong>{library.map(item => <div key={item.id} style={{ padding: '10px 8px', borderBottom: '1px solid rgba(255,255,255,.12)' }}><button onClick={() => { setAudioError(''); sendControl({ trackId: item.id }).catch(() => setAudioError('Could not load this track.')); setLibraryOpen(false); }} style={{ width: '100%', textAlign: 'left', border: 0, color: '#fff', background: 'transparent', cursor: 'pointer' }}><b>{item.title}</b></button><small style={{ display: 'flex', gap: 7, color: 'rgba(255,255,255,.65)' }}><span>{item.artist}</span>{item.attributionUrl && <a href={item.attributionUrl} target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>Credit</a>}{item.licenseUrl && <a href={item.licenseUrl} target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>{item.license || 'License'}</a>}</small></div>)}</div>}
     </div>
   );
 };

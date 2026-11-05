@@ -1,12 +1,56 @@
-const tracks = [
+const config = require('../config/env');
+const { getCloudinaryAudioTracks } = require('../services/cloudinaryAudioService');
+
+const fallbackTracks = [
   { id: 'kaushi-kanra', title: 'Raga Kaushi Kanra (Sitar & Tabla)', artist: 'Ranjit Makkuni & Akram Khan', audioUrl: 'https://upload.wikimedia.org/wikipedia/commons/2/24/RanjitMakkuniRagaKaushiKanra.ogg', attributionUrl: 'https://commons.wikimedia.org/wiki/File:RanjitMakkuniRagaKaushiKanra.ogg', licenseUrl: 'https://creativecommons.org/licenses/by-sa/3.0/', license: 'CC BY-SA 3.0' },
   { id: 'jhinjhoti', title: 'Piya Bin Nahi Aawat Chain (Jhinjhoti)', artist: 'Ustad Abdul Karim Khan', audioUrl: 'https://upload.wikimedia.org/wikipedia/commons/a/a6/Ustad_Abdul_Karim_Khan_-_Raag_Jhinjhoti.ogg', attributionUrl: 'https://commons.wikimedia.org/wiki/File:Ustad_Abdul_Karim_Khan_-_Raag_Jhinjhoti.ogg', licenseUrl: 'https://creativecommons.org/publicdomain/mark/1.0/', license: 'Public domain' },
   { id: 'gauhar-thumri', title: 'Thumri (1905 recording)', artist: 'Gauhar Jaan', audioUrl: 'https://upload.wikimedia.org/wikipedia/commons/0/0f/Thumari_By_Gauhar_Jaan_Recorded_in_1905.ogg', attributionUrl: 'https://commons.wikimedia.org/wiki/File:Thumari_By_Gauhar_Jaan_Recorded_in_1905.ogg', licenseUrl: 'https://creativecommons.org/publicdomain/mark/1.0/', license: 'Public domain' },
-  { id: 'gokul-gaav', title: 'Gokul Gaav Ke Choriwa (1904)', artist: 'Fazal Hussain Khan · Traditional', audioUrl: 'https://upload.wikimedia.org/wikipedia/commons/7/7f/Gokul_Gaav_Ke_Choriwa_%281904%29.ogg', attributionUrl: 'https://commons.wikimedia.org/wiki/File:Gokul_Gaav_Ke_Choriwa_(1904).ogg', licenseUrl: 'https://creativecommons.org/publicdomain/mark/1.0/', license: 'Public domain' },
+  { id: 'gokul-gaav', title: 'Gokul Gaav Ke Choriwa (1904)', artist: 'Fazal Hussain Khan - Traditional', audioUrl: 'https://upload.wikimedia.org/wikipedia/commons/7/7f/Gokul_Gaav_Ke_Choriwa_%281904%29.ogg', attributionUrl: 'https://commons.wikimedia.org/wiki/File:Gokul_Gaav_Ke_Choriwa_(1904).ogg', licenseUrl: 'https://creativecommons.org/publicdomain/mark/1.0/', license: 'Public domain' },
   { id: 'dadurwa', title: 'Dadurwa Bolay Mor Shor Karat (1910)', artist: 'Zohrabai Agrewali', audioUrl: 'https://upload.wikimedia.org/wikipedia/commons/d/da/Dadurwa_Bolay_Mor_Shor_Karat_.ogg', attributionUrl: 'https://commons.wikimedia.org/wiki/File:Dadurwa_Bolay_Mor_Shor_Karat_.ogg', licenseUrl: 'https://creativecommons.org/publicdomain/mark/1.0/', license: 'Public domain' },
 ];
-const defaultState = () => ({ isPlaying: false, trackId: tracks[0].id, track: tracks[0], volume: 65, isShuffle: false, isRepeat: false });
-const getState = user => { const state = { ...defaultState(), ...(user.musicState || {}) }; const selected = tracks.find(t => t.id === (state.trackId || state.track?.id)) || tracks[0]; state.trackId = selected.id; state.track = { ...selected, isLiked: !!state.track?.isLiked }; return state; };
-const getNowPlaying = async (req, res) => res.json({ success: true, data: { ...getState(req.user), tracks } });
-const controlPlayback = async (req, res, next) => { try { const state = getState(req.user); const { action, volume, isShuffle, isRepeat, trackId } = req.body; if (action === 'play') state.isPlaying = true; if (action === 'pause') state.isPlaying = false; if (action === 'toggle') state.isPlaying = !state.isPlaying; if (action === 'like') state.track.isLiked = !state.track.isLiked; if (trackId && tracks.some(t => t.id === trackId)) { state.trackId = trackId; state.track = { ...tracks.find(t => t.id === trackId), isLiked: false }; state.isPlaying = true; } if (action === 'next' || action === 'previous') { const current = tracks.findIndex(t => t.id === state.trackId); const index = state.isShuffle ? Math.floor(Math.random() * tracks.length) : (current + (action === 'next' ? 1 : tracks.length - 1)) % tracks.length; state.trackId = tracks[index].id; state.track = { ...tracks[index], isLiked: false }; } if (Number.isFinite(Number(volume))) state.volume = Math.max(0, Math.min(100, Number(volume))); if (typeof isShuffle === 'boolean') state.isShuffle = isShuffle; if (typeof isRepeat === 'boolean') state.isRepeat = isRepeat; req.user.musicState = state; await req.user.save(); res.json({ success: true, data: state }); } catch (e) { next(e); } };
-module.exports = { getNowPlaying, controlPlayback, tracks };
+
+const getTracks = async () => (await getCloudinaryAudioTracks()) || fallbackTracks;
+const defaultState = tracks => ({ isPlaying: false, trackId: tracks[0].id, track: tracks[0], volume: 65, isShuffle: false, isRepeat: false });
+const getState = (user, tracks) => {
+  const state = { ...defaultState(tracks), ...(user.musicState || {}) };
+  const selected = tracks.find(track => track.id === (state.trackId || state.track?.id)) || tracks[0];
+  state.trackId = selected.id;
+  state.track = { ...selected, isLiked: !!state.track?.isLiked };
+  return state;
+};
+
+const getNowPlaying = async (req, res) => {
+  const tracks = await getTracks();
+  res.json({ success: true, data: { ...getState(req.user, tracks), tracks } });
+};
+
+const controlPlayback = async (req, res, next) => {
+  try {
+    const tracks = await getTracks();
+    const state = getState(req.user, tracks);
+    const { action, volume, isShuffle, isRepeat, trackId } = req.body;
+    if (action === 'play') state.isPlaying = true;
+    if (action === 'pause') state.isPlaying = false;
+    if (action === 'toggle') state.isPlaying = !state.isPlaying;
+    if (action === 'like') state.track.isLiked = !state.track.isLiked;
+    if (trackId && tracks.some(track => track.id === trackId)) {
+      state.trackId = trackId;
+      state.track = { ...tracks.find(track => track.id === trackId), isLiked: false };
+      state.isPlaying = true;
+    }
+    if (action === 'next' || action === 'previous') {
+      const current = tracks.findIndex(track => track.id === state.trackId);
+      const index = state.isShuffle ? Math.floor(Math.random() * tracks.length) : (current + (action === 'next' ? 1 : tracks.length - 1)) % tracks.length;
+      state.trackId = tracks[index].id;
+      state.track = { ...tracks[index], isLiked: false };
+    }
+    if (Number.isFinite(Number(volume))) state.volume = Math.max(0, Math.min(100, Number(volume)));
+    if (typeof isShuffle === 'boolean') state.isShuffle = isShuffle;
+    if (typeof isRepeat === 'boolean') state.isRepeat = isRepeat;
+    req.user.musicState = state;
+    await req.user.save();
+    res.json({ success: true, data: state });
+  } catch (error) { next(error); }
+};
+
+module.exports = { getNowPlaying, controlPlayback, fallbackTracks };
