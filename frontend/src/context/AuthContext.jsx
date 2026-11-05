@@ -44,16 +44,13 @@ export const AuthProvider = ({ children }) => {
   };
 
   const register = async (name, email, password) => {
-    setLoading(true);
-    try {
-      const res = await authService.register(name, email, password);
-      if (res && res.user) {
-        setUser(res.user);
-      }
-      return res;
-    } finally {
-      setLoading(false);
+    // Registration has its own form-level loading state. Toggling the global
+    // auth bootstrap state here unmounts PublicOnlyRoute and erases form errors.
+    const res = await authService.register(name, email, password);
+    if (res && res.user) {
+      setUser(res.user);
     }
+    return res;
   };
 
   const logout = async () => {

@@ -32,7 +32,12 @@ export const RegisterPage = () => {
       const res = await register(name.trim(), email.trim(), password);
       toast.success('Account created. Verify your email to continue.');
       navigate(`/verify-email?email=${encodeURIComponent(res.email || email)}`);
-    } catch (err) { setError(err.message || 'Registration failed. Please try again.'); }
+    } catch (err) {
+      const message = err.code === 'EMAIL_IN_USE' || err.code === 'DUPLICATE_KEY_ERROR'
+        ? 'An account with this email already exists. Log in or use Forgot password to get back into your account.'
+        : err.message || 'We could not create your account. Please try again.';
+      setError(message);
+    }
     finally { setLoading(false); }
   };
 
@@ -42,7 +47,7 @@ export const RegisterPage = () => {
         <h2>Create Your Workspace</h2>
         <p>Everything you need to organize your digital life starts here.</p>
       </header>
-      {error && <div className="auth-feedback"><ErrorMessage title="Registration error" message={error} /></div>}
+      {error && <div className="auth-feedback" role="alert" aria-live="assertive"><ErrorMessage title="Registration error" message={error} /></div>}
       <form onSubmit={handleSubmit} className="auth-form" noValidate>
         <Input label="Full Name" type="text" id="register-name" name="name" placeholder="Alex Morgan" icon={User} value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" required />
         <Input label="Email Address" type="email" id="register-email" name="email" placeholder="you@example.com" icon={Mail} value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required />
