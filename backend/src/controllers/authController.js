@@ -45,7 +45,9 @@ const sendAuthCookie = (res, token) => {
   const cookieOptions = {
     httpOnly: true,
     secure: config.nodeEnv === 'production',
-    sameSite: config.nodeEnv === 'production' ? 'strict' : 'lax',
+    // Frontend and API are on separate Vercel sites; cross-site fetch needs
+    // SameSite=None, and Secure is enabled in production above.
+    sameSite: config.nodeEnv === 'production' ? 'none' : 'lax',
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   };
   res.cookie('auth_token', token, cookieOptions);
@@ -159,7 +161,7 @@ const logout = async (req, res) => {
   res.clearCookie('auth_token', {
     httpOnly: true,
     secure: config.nodeEnv === 'production',
-    sameSite: config.nodeEnv === 'production' ? 'strict' : 'lax',
+    sameSite: config.nodeEnv === 'production' ? 'none' : 'lax',
   });
 
   return res.status(200).json({
@@ -281,7 +283,7 @@ const deleteAccount = async (req, res, next) => {
     if (account.googleRefreshToken || account.googleAccessToken) { const token = account.googleRefreshToken ? unseal(account.googleRefreshToken) : unseal(account.googleAccessToken); if (token) await fetch('https://oauth2.googleapis.com/revoke', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ token }) }).catch(() => {}); }
     if (account.githubAccessToken) { const token = unseal(account.githubAccessToken); if (token) await fetch('https://api.github.com/applications/' + config.github.clientId + '/grant', { method: 'DELETE', headers: { Accept: 'application/vnd.github+json', Authorization: `Basic ${Buffer.from(`${config.github.clientId}:${config.github.clientSecret}`).toString('base64')}`, 'Content-Type': 'application/json', 'X-GitHub-Api-Version': '2022-11-28' }, body: JSON.stringify({ access_token: token }) }).catch(() => {}); }
     await Promise.all([Task.deleteMany({ userId: req.user._id }), CalendarEvent.deleteMany({ userId: req.user._id }), Notification.deleteMany({ userId: req.user._id }), AuthSession.deleteMany({ userId: req.user._id })]);
-    await User.deleteOne({ _id: req.user._id }); res.clearCookie('auth_token'); res.json({ success: true, message: 'Account and Digital Desk data removed.' });
+    await User.deleteOne({ _id: req.user._id }); res.clearCookie('auth_token', { httpOnly: true, secure: config.nodeEnv === 'production', sameSite: config.nodeEnv === 'production' ? 'none' : 'lax' }); res.json({ success: true, message: 'Account and Digital Desk data removed.' });
   } catch (e) { next(e); }
 };
 

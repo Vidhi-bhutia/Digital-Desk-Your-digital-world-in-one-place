@@ -57,7 +57,7 @@ const requireAuth = async (req, res, next) => {
       const expiresAt = new Date((decoded.exp || Math.floor(Date.now() / 1000) + 604800) * 1000);
       try { await AuthSession.updateOne({ userId: user._id, tokenId }, { $setOnInsert: { userId: user._id, tokenId, expiresAt, device: req.get('user-agent') || 'Unknown device', ip: req.ip || '' } }, { upsert: true }); } catch (e) { if (e.code !== 11000) throw e; }
       const replacement = require('../utils/jwt').generateToken({ id: user._id, jti: tokenId });
-      res.cookie('auth_token', replacement, { httpOnly: true, secure: config.nodeEnv === 'production', sameSite: config.nodeEnv === 'production' ? 'strict' : 'lax', maxAge: Math.max(0, expiresAt.getTime() - Date.now()) });
+      res.cookie('auth_token', replacement, { httpOnly: true, secure: config.nodeEnv === 'production', sameSite: config.nodeEnv === 'production' ? 'none' : 'lax', maxAge: Math.max(0, expiresAt.getTime() - Date.now()) });
     } else {
       req.authSessionId = decoded.jti;
       await AuthSession.updateOne({ userId: user._id, tokenId: decoded.jti, lastSeenAt: { $lt: new Date(Date.now() - 5 * 60 * 1000) } }, { $set: { lastSeenAt: new Date() } });
