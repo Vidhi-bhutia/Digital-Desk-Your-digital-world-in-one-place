@@ -10,6 +10,7 @@ import QuickLinksWidget from '../../components/dashboard/QuickLinksWidget';
 import AddTaskModal from '../../components/dashboard/AddTaskModal';
 import SearchModal from '../../components/dashboard/SearchModal';
 import MusicPlayerBar from '../../components/layout/MusicPlayerBar';
+import WelcomeTour from '../../components/dashboard/WelcomeTour';
 import { apiClient } from '../../services/apiClient';
 import { useToast } from '../../context/ToastContext';
 
@@ -115,6 +116,7 @@ export const DashboardPage = () => {
 
   return (
     <AppShell pageTitle="Home Dashboard" onOpenSearch={() => setIsSearchOpen(true)}>
+      <WelcomeTour />
       <div
         style={{
           display: 'flex',

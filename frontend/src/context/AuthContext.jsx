@@ -30,15 +30,16 @@ export const AuthProvider = ({ children }) => {
   }, [refreshUser]);
 
   const login = async (email, password) => {
-    setLoading(true);
     try {
       const res = await authService.login(email, password);
       if (res && res.user) {
         setUser(res.user);
       }
       return res;
-    } finally {
-      setLoading(false);
+    } catch (error) {
+      // A failed login must leave the public login route mounted so its form
+      // can show the API's validation or credential error inline.
+      throw error;
     }
   };
 

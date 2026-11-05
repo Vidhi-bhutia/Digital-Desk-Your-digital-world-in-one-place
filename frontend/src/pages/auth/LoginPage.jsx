@@ -36,7 +36,9 @@ export const LoginPage = () => {
         navigate(`/verify-email?email=${encodeURIComponent(err.details?.email || email)}`);
         return;
       }
-      setError(err.message || 'Invalid email or password. Please try again.');
+      setError(err.code === 'INVALID_CREDENTIALS'
+        ? 'That email and password do not match an account. Check your details and try again.'
+        : err.message || 'We could not sign you in. Please try again.');
     } finally { setLoading(false); }
   };
 
@@ -46,7 +48,7 @@ export const LoginPage = () => {
         <h2>Welcome Back!</h2>
         <p>Log in to continue to your personal digital workspace.</p>
       </header>
-      {error && <div className="auth-feedback"><ErrorMessage title="Unable to log in" message={error} /></div>}
+      {error && <div className="auth-feedback" role="alert" aria-live="assertive"><ErrorMessage title="Sign-in failed" message={error} /></div>}
       <form onSubmit={handleSubmit} className="auth-form" noValidate>
         <Input label="Email Address" type="email" id="login-email" name="email" placeholder="you@example.com" icon={Mail} value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required />
         <div>

@@ -1,5 +1,6 @@
 @import './theme.css';
 @import './auth.css';
+@import './welcome-tour.css';
 
 /* Global Reset & Base Styles */
 *, *::before, *::after {

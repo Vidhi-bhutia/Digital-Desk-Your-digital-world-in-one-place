@@ -13,8 +13,6 @@ const {
   requestAccountDeletionOtp,
   requestEmailVerification,
   verifyEmail,
-  requestPhoneVerification,
-  verifyPhone,
   forgotPassword,
   resetPassword,
   githubAuth,
@@ -54,7 +52,5 @@ router.get('/sessions', requireAuth, listSessions);
 router.delete('/sessions/others', requireAuth, logoutOtherSessions);
 router.delete('/account', requireAuth, deleteAccount);
 router.post('/account/delete-otp', requireAuth, authRateLimiter, requestAccountDeletionOtp);
-router.post('/phone/verification/request', requireAuth, authRateLimiter, requestPhoneVerification);
-router.post('/phone/verification/verify', requireAuth, authRateLimiter, verifyPhone);
 
 module.exports = router;

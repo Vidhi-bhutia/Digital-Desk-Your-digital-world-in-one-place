@@ -10,13 +10,6 @@ const Notification = require('../models/Notification');
 const Task = require('../models/Task');
 const CalendarEvent = require('../models/CalendarEvent');
 const { notifyIfAllowed } = require('./notificationController');
-const normalizePhone = value => String(value || '').replace(/[\s().-]/g, '');
-const phoneAlreadyUsed = async (phone, exceptUserId) => {
-  if (await User.exists({ phoneNormalized: phone, _id: { $ne: exceptUserId } })) return true;
-  if (await User.exists({ pendingPhone: phone, _id: { $ne: exceptUserId } })) return true;
-  const users = await User.find({ phone: { $nin: ['', null] }, _id: { $ne: exceptUserId } }).select('phone +phoneNormalized').lean();
-  return users.some(user => normalizePhone(user.phoneNormalized || user.phone) === phone);
-};
 
 const issueSession = async (user, req) => {
   const tokenId = require('crypto').randomUUID();
@@ -188,34 +181,9 @@ const verifyEmail = async (req, res, next) => {
   } catch (e) { next(e); }
 };
 
-const requestPhoneVerification = async (req, res, next) => {
-  try {
-    const phone = normalizePhone(req.body.phone);
-    if (!/^\+[1-9]\d{7,14}$/.test(phone)) return res.status(400).json({ success: false, message: 'Enter a valid phone number with its country code, for example +919876543210.' });
-    if (await phoneAlreadyUsed(phone, req.user._id)) return res.status(409).json({ success: false, message: 'That phone number is already in use on another account.' });
-    const code = generateOtp();
-    await require('../services/smsService').sendVerificationCode(phone, code, 'verify your phone number');
-    const user = await User.findById(req.user._id).select('+pendingPhone +phoneVerificationOtpHash +phoneVerificationOtpExpires');
-    user.pendingPhone = phone; user.phoneVerificationOtpHash = hashToken(code); user.phoneVerificationOtpExpires = new Date(Date.now() + 10 * 60 * 1000); await user.save();
-    res.json({ success: true, message: 'A verification code was sent by SMS.' });
-  } catch (e) { next(e); }
-};
-
-const verifyPhone = async (req, res, next) => {
-  try {
-    const otp = String(req.body.otp || '').trim(); if (!/^\d{6}$/.test(otp)) return res.status(400).json({ success: false, message: 'Enter the 6-digit SMS code.' });
-    const user = await User.findById(req.user._id).select('+pendingPhone +phoneVerificationOtpHash +phoneVerificationOtpExpires +phoneNormalized');
-    if (!user?.pendingPhone || user.phoneVerificationOtpHash !== hashToken(otp) || !user.phoneVerificationOtpExpires || user.phoneVerificationOtpExpires <= new Date()) return res.status(400).json({ success: false, code: 'INVALID_OTP', message: 'That phone verification code is invalid or expired.' });
-    if (await phoneAlreadyUsed(user.pendingPhone, user._id)) return res.status(409).json({ success: false, message: 'That phone number is already in use on another account.' });
-    user.phone = user.pendingPhone; user.phoneNormalized = user.pendingPhone; user.phoneVerifiedAt = new Date(); user.pendingPhone = ''; user.phoneVerificationOtpHash = null; user.phoneVerificationOtpExpires = null;
-    try { await user.save(); } catch (e) { if (e.code === 11000) return res.status(409).json({ success: false, message: 'That phone number is already in use on another account.' }); throw e; }
-    res.json({ success: true, message: 'Phone number verified.', user: user.toAuthUser() });
-  } catch (e) { next(e); }
-};
-
 const updateProfile = async (req, res, next) => {
   try {
-    const { name, email, phone, avatar, currentPassword } = req.body;
+    const { name, email, avatar, currentPassword } = req.body;
     const emailChanged = typeof email === 'string' && email.toLowerCase().trim() !== req.user.email;
     if (name !== undefined) {
       if (typeof name !== 'string' || !name.trim()) return res.status(400).json({ success: false, message: 'Name is required.' });
@@ -231,7 +199,6 @@ const updateProfile = async (req, res, next) => {
       req.user.email = normalizedEmail;
       req.user.emailVerifiedAt = null;
     }
-    if (phone !== undefined && normalizePhone(phone) !== normalizePhone(req.user.phone) && normalizePhone(phone)) return res.status(400).json({ success: false, message: 'Verify a phone number before saving it.' });
     if (avatar !== undefined) {
       if (avatar && (!/^data:image\/(png|jpeg|webp|gif);base64,/.test(avatar) || avatar.length > 4_000_000)) return res.status(400).json({ success: false, message: 'Upload a supported image smaller than 3 MB.' });
       req.user.avatar = avatar || '';
@@ -621,8 +588,6 @@ module.exports = {
   deleteAccount,
   requestEmailVerification,
   verifyEmail,
-  requestPhoneVerification,
-  verifyPhone,
   forgotPassword,
   resetPassword,
   githubAuth,

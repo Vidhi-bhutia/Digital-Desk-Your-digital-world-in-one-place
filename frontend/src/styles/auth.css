@@ -33,6 +33,8 @@
 .auth-switch { margin-top: 19px; padding-top: 16px; border-top: 1px solid #e9e4d9; color: #667168; font-size: 13px; text-align: center; }
 .auth-privacy-note { margin-top: 12px; color: #9a9b8f; font-size: 11px; text-align: center; }
 .auth-feedback { margin-bottom: 18px; }
+.auth-login .auth-feedback .dd-error-message { margin: 0 0 3px; padding: 13px 15px; border-radius: 12px; }
+.auth-login .auth-feedback .dd-error-message > div:first-child { margin-top: 1px; }
 .auth-otp-row { display: flex; justify-content: center; gap: clamp(5px, 1.5vw, 10px); }
 .auth-otp-row input { width: min(52px, 13vw); height: 54px !important; padding: 0 !important; text-align: center; font-size: 21px !important; font-weight: 700; }
 .auth-inline-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
