@@ -12,7 +12,7 @@ Never commit `.env` files. OAuth and provider secrets belong only in the backend
 
 ## Deploy the backend to Vercel
 
-Set the Vercel project's Root Directory to `backend` so it discovers `backend/api/[...route].js` as the serverless API entry point. Configure the production environment variables there, including `MONGO_URI`, then redeploy. The function connects to MongoDB before forwarding each request to Express and reuses the connection while the function instance stays warm.
+Set the Vercel project's Root Directory to `backend` so Vercel detects the Express application in `src/server.js`. Configure the production environment variables there, including `MONGO_URI`, then redeploy. The app connects to MongoDB before each request and reuses the connection while the function instance stays warm.
 
 ## Provider configuration
 

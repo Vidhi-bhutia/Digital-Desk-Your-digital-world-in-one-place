@@ -7,6 +7,8 @@ const authRoutes = require('./routes/authRoutes');
 const apiRoutes = require('./routes/apiRoutes');
 const { notFoundHandler, errorHandler } = require('./middleware/errorMiddleware');
 const rateLimit = require('express-rate-limit');
+const { connectDB } = require('./config/db');
+const logger = require('./utils/logger');
 
 const app = express();
 app.set('trust proxy', config.trustProxyHops);
@@ -77,6 +79,22 @@ app.use(express.urlencoded({ extended: true, limit: '16kb', parameterLimit: 100 
 
 // Cookie parsing
 app.use(cookieParser(config.cookieSecret));
+
+// Vercel can invoke this exported Express app without running a persistent
+// server startup hook. Ensure MongoDB is connected before any route queries.
+app.use(async (_req, res, next) => {
+  try {
+    await connectDB();
+    return next();
+  } catch (error) {
+    logger.error('Request could not connect to MongoDB:', error);
+    return res.status(503).json({
+      success: false,
+      code: 'DATABASE_UNAVAILABLE',
+      message: 'The database is temporarily unavailable. Please try again shortly.',
+    });
+  }
+});
 
 // Healthcheck endpoint
 app.get('/api/health', (req, res) => {

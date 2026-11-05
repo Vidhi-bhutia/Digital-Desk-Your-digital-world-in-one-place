@@ -34,4 +34,8 @@ const startServer = async () => {
   }
 };
 
-startServer();
+// Vercel's Express adapter imports this supported entry point and expects the
+// app export. `npm start` still launches the standalone local server.
+if (require.main === module) startServer();
+
+module.exports = app;
