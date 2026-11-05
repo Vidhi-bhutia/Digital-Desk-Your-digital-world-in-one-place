@@ -10,6 +10,10 @@ Digital Desk is a React/Vite personal workspace backed by an Express API and Mon
 
 Never commit `.env` files. OAuth and provider secrets belong only in the backend environment.
 
+## Deploy the backend to Vercel
+
+Set the Vercel project's Root Directory to `backend` so it discovers `backend/api/[...route].js` as the serverless API entry point. Configure the production environment variables there, including `MONGO_URI`, then redeploy. The function connects to MongoDB before forwarding each request to Express and reuses the connection while the function instance stays warm.
+
 ## Provider configuration
 
 - **GitHub:** Connect using a fine grained personal access token with the needed repository read permissions. The API validates the token with GitHub before storing it encrypted. The optional GitHub OAuth client variables support the existing login flow.
