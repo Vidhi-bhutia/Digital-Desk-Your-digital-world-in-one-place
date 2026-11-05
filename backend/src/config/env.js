@@ -11,6 +11,7 @@ const frontendUrls = (process.env.FRONTEND_URL || 'http://localhost:5173')
 
 const config = {
   port: process.env.PORT || 5000,
+  trustProxyHops: process.env.TRUST_PROXY_HOPS && Number.isInteger(Number(process.env.TRUST_PROXY_HOPS)) ? Math.max(0, Number(process.env.TRUST_PROXY_HOPS)) : 0,
   nodeEnv: process.env.NODE_ENV || 'development',
   // FRONTEND_URL can contain multiple comma-separated CORS origins. Redirects
   // and links must use a single valid absolute URL, so use the first entry.
@@ -21,7 +22,7 @@ const config = {
   jwtSecret: process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? '' : 'digitaldesk_jwt_secret_fallback'),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   cookieSecret: process.env.COOKIE_SECRET || (process.env.NODE_ENV === 'production' ? '' : 'digitaldesk_cookie_secret_fallback'),
-  encryptionKey: process.env.ENCRYPTION_KEY || process.env.JWT_SECRET || 'digitaldesk_encryption_fallback',
+  encryptionKey: process.env.ENCRYPTION_KEY || (process.env.NODE_ENV === 'production' ? '' : process.env.JWT_SECRET || 'digitaldesk_encryption_fallback'),
   smtp: {
     host: process.env.SMTP_HOST || 'smtp.gmail.com',
     port: parseInt(process.env.SMTP_PORT || '587', 10),

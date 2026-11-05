@@ -25,6 +25,8 @@ const {
 const { requireAuth } = require('../middleware/authMiddleware');
 const { authRateLimiter } = require('../middleware/rateLimitMiddleware');
 
+router.use((req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
+
 // Public auth routes with rate limiting
 router.post('/register', authRateLimiter, register);
 router.post('/login', authRateLimiter, login);
@@ -50,7 +52,7 @@ router.put('/profile', requireAuth, updateProfile);
 router.put('/password', requireAuth, changePassword);
 router.get('/sessions', requireAuth, listSessions);
 router.delete('/sessions/others', requireAuth, logoutOtherSessions);
-router.delete('/account', requireAuth, deleteAccount);
+router.delete('/account', requireAuth, authRateLimiter, deleteAccount);
 router.post('/account/delete-otp', requireAuth, authRateLimiter, requestAccountDeletionOtp);
 
 module.exports = router;

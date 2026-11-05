@@ -11,11 +11,14 @@ const getTasks = async (req, res, next) => {
     const end = new Date(start); end.setDate(end.getDate() + 1);
     const filter = req.query.filter || 'all';
     const query = { userId: req.user._id };
-    if (req.query.q) query.$or = [
-      { title: { $regex: req.query.q, $options: 'i' } },
-      { description: { $regex: req.query.q, $options: 'i' } },
-      { category: { $regex: req.query.q, $options: 'i' } },
-    ];
+    if (req.query.q) {
+      const search = String(req.query.q).slice(0, 120).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      query.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } },
+        { category: { $regex: search, $options: 'i' } },
+      ];
+    }
     if (filter === 'completed') query.completed = true;
     if (filter === 'open') query.completed = false;
     if (filter === 'today') Object.assign(query, { completed: false, dueDate: { $gte: start, $lt: end } });

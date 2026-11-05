@@ -6,11 +6,14 @@ const config = require('./config/env');
 const authRoutes = require('./routes/authRoutes');
 const apiRoutes = require('./routes/apiRoutes');
 const { notFoundHandler, errorHandler } = require('./middleware/errorMiddleware');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
+app.set('trust proxy', config.trustProxyHops);
 
 // Security headers
-app.use(helmet());
+app.use(helmet({ strictTransportSecurity: config.nodeEnv === 'production' ? undefined : false }));
+app.use((req, res, next) => { res.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(self)'); next(); });
 
 // CORS compares serialized origins. In development Vite may choose another port
 // or be opened via localhost/127.0.0.1; production stays on explicit origins.
@@ -28,8 +31,9 @@ const configuredOrigins = (config.frontendUrls || [config.frontendUrl]).map(norm
 const isAllowedOrigin = (origin) => {
   const normalized = normalizeOrigin(origin);
   if (!normalized) return false;
-  if (allowedOrigins.includes(normalized) || configuredOrigins.includes(normalized)) return true;
+  if (configuredOrigins.includes(normalized)) return true;
   if (config.nodeEnv !== 'production') {
+    if (allowedOrigins.includes(normalized)) return true;
     try {
       const url = new URL(normalized);
       return ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname) && ['http:', 'https:'].includes(url.protocol);
@@ -56,9 +60,20 @@ app.use(
   })
 );
 
+// Origin checks protect cookie-authenticated state changes from cross-site
+// requests. Non-browser clients without an Origin header remain supported.
+app.use((req, res, next) => {
+  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) || !req.get('origin')) return next();
+  if (isAllowedOrigin(req.get('origin'))) return next();
+  return res.status(403).json({ success: false, code: 'CSRF_ORIGIN_REJECTED', message: 'Request origin is not allowed.' });
+});
+
+app.use('/api', rateLimit({ windowMs: 15 * 60 * 1000, limit: 600, standardHeaders: true, legacyHeaders: false, message: { success: false, code: 'RATE_LIMITED', message: 'Too many requests. Please wait and try again.' } }));
+app.use('/api/auth', (req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
+
 // Body parsing middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '5mb' }));
+app.use(express.urlencoded({ extended: true, limit: '16kb', parameterLimit: 100 }));
 
 // Cookie parsing
 app.use(cookieParser(config.cookieSecret));

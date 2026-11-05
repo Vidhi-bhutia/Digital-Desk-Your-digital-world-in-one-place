@@ -10,13 +10,15 @@ const notFoundHandler = (req, res, next) => {
 };
 
 const errorHandler = (err, req, res, next) => {
-  logger.error(`Error processing ${req.method} ${req.originalUrl}:`, err);
-
-  let statusCode = err.statusCode || res.statusCode || 500;
+  let statusCode = err.statusCode || err.status || res.statusCode || 500;
   if (statusCode === 200) statusCode = 500;
 
   let message = err.message || 'An unexpected server error occurred.';
+  if (statusCode >= 500 && config.nodeEnv === 'production') message = 'An unexpected server error occurred.';
   let code = err.code || 'INTERNAL_SERVER_ERROR';
+  const routeName = `${req.method} ${req.baseUrl || '/api'}${req.route?.path || ''}`;
+  if (statusCode < 500) logger.warn(`Rejected request ${routeName}.`, { statusCode, code });
+  else logger.error(`Error processing ${routeName}:`, err);
 
   // Handle Mongoose duplicate key error
   if (err.code === 11000) {

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AppShell from '../../components/layout/AppShell';
 import Button from '../../components/common/Button';
+import Avatar from '../../components/common/Avatar';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { apiClient } from '../../services/apiClient';
@@ -30,7 +31,7 @@ export default function ProfileCenter() {
   return <AppShell pageTitle="Profile"><div style={{ maxWidth: 820, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 18, paddingBottom: 24 }}>
     <form style={card} onSubmit={saveProfile}>
       <h2>Personal information</h2>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 18, margin: '16px 0' }}><img src={profile.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name || 'User')}&background=0F5132&color=fff`} alt="Profile avatar" style={{ width: 76, height: 76, borderRadius: '50%', objectFit: 'cover' }}/><div><label style={{ color: 'var(--color-brand)', fontWeight: 700 }}>Change photo<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={handleImage} style={{ display: 'block', maxWidth: 230, marginTop: 6 }}/></label><button type="button" onClick={() => setProfile(p => ({ ...p, avatar: '' }))} style={{ marginTop: 6, border: 0, background: 'none', color: 'var(--color-danger)', cursor: 'pointer' }}>Remove photo</button></div></div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 18, margin: '16px 0' }}><Avatar name={profile.name || 'User'} src={profile.avatar} size={76}/><div><label style={{ color: 'var(--color-brand)', fontWeight: 700 }}>Change photo<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={handleImage} style={{ display: 'block', maxWidth: 230, marginTop: 6 }}/></label><button type="button" onClick={() => setProfile(p => ({ ...p, avatar: '' }))} style={{ marginTop: 6, border: 0, background: 'none', color: 'var(--color-danger)', cursor: 'pointer' }}>Remove photo</button></div></div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 14 }}>
         <label>Full name<input required maxLength={100} style={{ ...field, display: 'block', marginTop: 5 }} value={profile.name} onChange={e => setProfile(p => ({ ...p, name: e.target.value }))}/></label>
         <label>Email address<input required type="email" style={{ ...field, display: 'block', marginTop: 5 }} value={profile.email} onChange={e => setProfile(p => ({ ...p, email: e.target.value }))}/><small>{user?.emailVerifiedAt ? 'Email verified' : 'Email not verified'}</small></label>

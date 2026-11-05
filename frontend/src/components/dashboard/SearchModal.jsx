@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, X, Mail, Github, Calendar, CheckSquare, Globe, RefreshCw, ExternalLink } from 'lucide-react';
 import { apiClient } from '../../services/apiClient';
+import { safeHref } from '../../utils/safeHref';
 
 const labels = { web: 'Web', github: 'GitHub', gmail: 'Gmail', calendar: 'Calendar', tasks: 'Tasks' };
 const icons = { web: Globe, github: Github, gmail: Mail, calendar: Calendar, tasks: CheckSquare };
@@ -39,8 +40,9 @@ export const SearchModal = ({ isOpen, onClose, inline = false }) => {
     : (sections[activeSource]?.length ? [[activeSource, sections[activeSource]]] : []);
   const renderResult = (source, item) => {
     const Icon = icons[source] || ExternalLink;
-    const internal = item.url?.startsWith('/');
-    return <a key={item.id} href={item.url || '#'} target={internal ? undefined : '_blank'} rel={internal ? undefined : 'noreferrer'} className="search-result-card" onClick={e => { if (!item.url) e.preventDefault(); }}>
+    const href = safeHref(item.url);
+    const internal = href.startsWith('/');
+    return <a key={item.id} href={href || '#'} target={!internal && href ? '_blank' : undefined} rel={!internal && href ? 'noreferrer' : undefined} className="search-result-card" onClick={e => { if (!href) e.preventDefault(); }}>
       <span className="search-result-icon"><Icon size={18}/></span>
       <span className="search-result-copy"><strong>{item.title}</strong><span>{item.subtitle}</span></span>
       <span className="search-result-source">{item.domain || labels[source] || item.source}</span>

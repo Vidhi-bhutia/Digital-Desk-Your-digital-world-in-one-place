@@ -10,6 +10,27 @@ const Notification = require('../models/Notification');
 const Task = require('../models/Task');
 const CalendarEvent = require('../models/CalendarEvent');
 const { notifyIfAllowed } = require('./notificationController');
+const OTP_RESEND_COOLDOWN_MS = 60 * 1000;
+const isOtpCoolingDown = sentAt => sentAt && Date.now() - new Date(sentAt).getTime() < OTP_RESEND_COOLDOWN_MS;
+
+const otpHashMatches = (storedHash, candidateHash) => {
+  if (!/^[a-f0-9]{64}$/i.test(storedHash || '') || !/^[a-f0-9]{64}$/i.test(candidateHash || '')) return false;
+  return require('crypto').timingSafeEqual(Buffer.from(storedHash, 'hex'), Buffer.from(candidateHash, 'hex'));
+};
+
+const consumeOtp = async (user, code, { hashField, expiresField, attemptsField, extraSet = {} }) => {
+  if (!user || !user[hashField] || !user[expiresField] || user[expiresField] <= new Date() || (user[attemptsField] || 0) >= 5) return false;
+  const candidateHash = hashToken(String(code));
+  if (!otpHashMatches(user[hashField], candidateHash)) {
+    await User.updateOne({ _id: user._id, [hashField]: user[hashField], [expiresField]: { $gt: new Date() }, $or: [{ [attemptsField]: { $lt: 5 } }, { [attemptsField]: { $exists: false } }] }, { $inc: { [attemptsField]: 1 } });
+    return false;
+  }
+  const set = { [hashField]: null, [expiresField]: null, [attemptsField]: 0, ...extraSet };
+  const result = await User.updateOne({ _id: user._id, [hashField]: user[hashField], [expiresField]: { $gt: new Date() }, $or: [{ [attemptsField]: { $lt: 5 } }, { [attemptsField]: { $exists: false } }] }, { $set: set });
+  if (result.modifiedCount !== 1) return false;
+  Object.assign(user, set);
+  return true;
+};
 
 const issueSession = async (user, req) => {
   const tokenId = require('crypto').randomUUID();
@@ -63,9 +84,9 @@ const register = async (req, res, next) => {
       email: normalizedEmail,
       passwordHash,
     });
-    const emailCode = generateOtp(); user.emailVerificationOtpHash = hashToken(emailCode); user.emailVerificationOtpExpires = new Date(Date.now() + 10 * 60 * 1000); await user.save();
+    const emailCode = generateOtp(); user.emailVerificationOtpHash = hashToken(emailCode); user.emailVerificationOtpExpires = new Date(Date.now() + 10 * 60 * 1000); user.emailVerificationOtpAttempts = 0; user.emailVerificationOtpSentAt = new Date(); await user.save();
     const delivered = await sendEmailVerificationOtp(user, emailCode);
-    logger.info(`New account created; email verification required: ${user.email}`);
+    logger.info('New account created; email verification required.');
 
     return res.status(201).json({
       success: true,
@@ -92,18 +113,21 @@ const login = async (req, res, next) => {
 
     const normalizedEmail = email.toLowerCase().trim();
 
-    const user = await User.findOne({ email: normalizedEmail }).select('+passwordHash');
+    const user = await User.findOne({ email: normalizedEmail }).select('+passwordHash +emailVerificationOtpHash +emailVerificationOtpExpires +emailVerificationOtpAttempts +emailVerificationOtpSentAt');
     if (!user) {
+      logger.warn('Rejected login attempt.');
       return res.status(401).json({ success: false, message: 'Invalid email or password.', code: 'INVALID_CREDENTIALS' });
     }
 
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
+      logger.warn('Rejected login attempt.');
       return res.status(401).json({ success: false, message: 'Invalid email or password.', code: 'INVALID_CREDENTIALS' });
     }
 
     if (!user.emailVerifiedAt) {
-      const code = generateOtp(); user.emailVerificationOtpHash = hashToken(code); user.emailVerificationOtpExpires = new Date(Date.now() + 10 * 60 * 1000); await user.save();
+      if (isOtpCoolingDown(user.emailVerificationOtpSentAt)) return res.status(403).json({ success: false, code: 'EMAIL_UNVERIFIED', email: user.email, message: 'Your email is not verified. A new code was sent recently; please check your inbox.' });
+      const code = generateOtp(); user.emailVerificationOtpHash = hashToken(code); user.emailVerificationOtpExpires = new Date(Date.now() + 10 * 60 * 1000); user.emailVerificationOtpAttempts = 0; user.emailVerificationOtpSentAt = new Date(); await user.save();
       const sent = await sendEmailVerificationOtp(user, code);
       return res.status(403).json({ success: false, code: 'EMAIL_UNVERIFIED', email: user.email, message: sent ? 'Verify your email before signing in. We sent a new code.' : 'Your email is not verified and email delivery is not configured.' });
     }
@@ -112,13 +136,12 @@ const login = async (req, res, next) => {
     await notifyIfAllowed(user, { category: 'security', title: 'New sign-in', message: `${req.get('user-agent') || 'A device'} · ${req.ip || ''}`, link: '/profile', dedupeKey: `login:${Date.now()}:${token}` });
     sendAuthCookie(res, token);
 
-    logger.info(`User logged in successfully: ${user.email}`);
+    logger.info('User logged in successfully.');
 
     return res.status(200).json({
       success: true,
       message: 'Logged in successfully.',
       user: user.toAuthUser(),
-      token,
     });
   } catch (error) {
     next(error);
@@ -159,9 +182,10 @@ const requestEmailVerification = async (req, res, next) => {
   try {
     const email = String(req.body.email || '').trim().toLowerCase();
     if (!validator.isEmail(email)) return res.status(400).json({ success: false, message: 'Enter a valid email address.' });
-    const user = await User.findOne({ email }).select('+emailVerificationOtpHash +emailVerificationOtpExpires');
+    const user = await User.findOne({ email }).select('+emailVerificationOtpHash +emailVerificationOtpExpires +emailVerificationOtpAttempts +emailVerificationOtpSentAt');
     if (!user || user.emailVerifiedAt) return res.json({ success: true, message: 'If the address needs verification, a code has been sent.' });
-    const code = generateOtp(); user.emailVerificationOtpHash = hashToken(code); user.emailVerificationOtpExpires = new Date(Date.now() + 10 * 60 * 1000); await user.save();
+    if (isOtpCoolingDown(user.emailVerificationOtpSentAt)) return res.json({ success: true, message: 'If the address needs verification, a code has been sent.' });
+    const code = generateOtp(); user.emailVerificationOtpHash = hashToken(code); user.emailVerificationOtpExpires = new Date(Date.now() + 10 * 60 * 1000); user.emailVerificationOtpAttempts = 0; user.emailVerificationOtpSentAt = new Date(); await user.save();
     const sent = await sendEmailVerificationOtp(user, code);
     if (!sent) return res.status(503).json({ success: false, message: 'Email delivery is not configured. Contact the administrator to enable verification email.' });
     res.json({ success: true, message: 'A verification code was sent to your email.' });
@@ -172,12 +196,13 @@ const verifyEmail = async (req, res, next) => {
   try {
     const email = String(req.body.email || '').trim().toLowerCase(); const otp = String(req.body.otp || '').trim();
     if (!validator.isEmail(email) || !/^\d{6}$/.test(otp)) return res.status(400).json({ success: false, message: 'Enter your email and the 6-digit verification code.' });
-    const user = await User.findOne({ email, emailVerificationOtpHash: hashToken(otp), emailVerificationOtpExpires: { $gt: new Date() } }).select('+emailVerificationOtpHash +emailVerificationOtpExpires');
-    if (!user) return res.status(400).json({ success: false, code: 'INVALID_OTP', message: 'That verification code is invalid or expired.' });
-    user.emailVerifiedAt = new Date(); user.emailVerificationOtpHash = null; user.emailVerificationOtpExpires = null; await user.save();
+    const user = await User.findOne({ email }).select('+emailVerificationOtpHash +emailVerificationOtpExpires +emailVerificationOtpAttempts');
+    const consumed = await consumeOtp(user, otp, { hashField: 'emailVerificationOtpHash', expiresField: 'emailVerificationOtpExpires', attemptsField: 'emailVerificationOtpAttempts', extraSet: { emailVerifiedAt: new Date() } });
+    if (!consumed) return res.status(400).json({ success: false, code: 'INVALID_OTP', message: 'That verification code is invalid, expired, or locked after too many attempts.' });
+    await user.save();
     const token = await issueSession(user, req); sendAuthCookie(res, token);
     sendWelcomeEmail(user).catch(err => logger.error('Async welcome email send error:', err));
-    res.json({ success: true, message: 'Email verified successfully.', user: user.toAuthUser(), token });
+    res.json({ success: true, message: 'Email verified successfully.', user: user.toAuthUser() });
   } catch (e) { next(e); }
 };
 
@@ -210,7 +235,7 @@ const updateProfile = async (req, res, next) => {
     await req.user.save();
     let verificationRequired = false; let verificationEmailSent = true;
     if (emailChanged) {
-      const code = generateOtp(); req.user.emailVerificationOtpHash = hashToken(code); req.user.emailVerificationOtpExpires = new Date(Date.now() + 10 * 60 * 1000); await req.user.save();
+      const code = generateOtp(); req.user.emailVerificationOtpHash = hashToken(code); req.user.emailVerificationOtpExpires = new Date(Date.now() + 10 * 60 * 1000); req.user.emailVerificationOtpAttempts = 0; req.user.emailVerificationOtpSentAt = new Date(); await req.user.save();
       verificationEmailSent = await sendEmailVerificationOtp(req.user, code); verificationRequired = true;
     }
     await notifyIfAllowed(req.user, { category: 'security', title: 'Account profile updated', message: 'Your account information was changed.', link: '/profile', dedupeKey: `profile:${req.user.updatedAt?.getTime() || Date.now()}` });
@@ -237,9 +262,10 @@ const logoutOtherSessions = async (req, res, next) => { try { if (req.authSessio
 const requestAccountDeletionOtp = async (req, res, next) => {
   try {
     if (req.body.confirmation !== true || !req.body.currentPassword) return res.status(400).json({ success: false, message: 'Confirm deletion and enter your current password first.' });
-    const user = await User.findById(req.user._id).select('+passwordHash +accountDeletionOtpHash +accountDeletionOtpExpires');
+    const user = await User.findById(req.user._id).select('+passwordHash +accountDeletionOtpHash +accountDeletionOtpExpires +accountDeletionOtpAttempts +accountDeletionOtpSentAt');
     if (!await user.comparePassword(req.body.currentPassword)) return res.status(401).json({ success: false, message: 'Current password is incorrect.' });
-    const code = generateOtp(); user.accountDeletionOtpHash = hashToken(code); user.accountDeletionOtpExpires = new Date(Date.now() + 10 * 60 * 1000); await user.save();
+    if (isOtpCoolingDown(user.accountDeletionOtpSentAt)) return res.status(429).json({ success: false, message: 'A deletion confirmation code was sent recently. Please wait a minute before requesting another.' });
+    const code = generateOtp(); user.accountDeletionOtpHash = hashToken(code); user.accountDeletionOtpExpires = new Date(Date.now() + 10 * 60 * 1000); user.accountDeletionOtpAttempts = 0; user.accountDeletionOtpSentAt = new Date(); await user.save();
     if (!await sendAccountDeletionOtp(user, code)) return res.status(503).json({ success: false, message: 'Email delivery is not configured. Contact the administrator to enable deletion verification.' });
     res.json({ success: true, message: `A confirmation code was sent to ${user.email}.` });
   } catch (e) { next(e); }
@@ -247,9 +273,10 @@ const requestAccountDeletionOtp = async (req, res, next) => {
 const deleteAccount = async (req, res, next) => {
   try {
     if (req.body.confirmation !== true || !req.body.currentPassword || !/^\d{6}$/.test(String(req.body.otp || ''))) return res.status(400).json({ success: false, message: 'Confirm deletion, enter your password, and provide the email code.' });
-    const account = await User.findById(req.user._id).select('+passwordHash +googleAccessToken +googleRefreshToken +githubAccessToken +accountDeletionOtpHash +accountDeletionOtpExpires');
+    const account = await User.findById(req.user._id).select('+passwordHash +googleAccessToken +googleRefreshToken +githubAccessToken +accountDeletionOtpHash +accountDeletionOtpExpires +accountDeletionOtpAttempts');
     if (!await account.comparePassword(req.body.currentPassword)) return res.status(401).json({ success: false, message: 'Current password is incorrect.' });
-    if (!account.accountDeletionOtpHash || account.accountDeletionOtpHash !== hashToken(String(req.body.otp)) || !account.accountDeletionOtpExpires || account.accountDeletionOtpExpires <= new Date()) return res.status(400).json({ success: false, message: 'The email code is invalid or expired.' });
+    const deletionOtpConsumed = await consumeOtp(account, String(req.body.otp), { hashField: 'accountDeletionOtpHash', expiresField: 'accountDeletionOtpExpires', attemptsField: 'accountDeletionOtpAttempts' });
+    if (!deletionOtpConsumed) return res.status(400).json({ success: false, message: 'The email code is invalid, expired, or locked after too many attempts.' });
     const { unseal } = require('../utils/crypto');
     if (account.googleRefreshToken || account.googleAccessToken) { const token = account.googleRefreshToken ? unseal(account.googleRefreshToken) : unseal(account.googleAccessToken); if (token) await fetch('https://oauth2.googleapis.com/revoke', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ token }) }).catch(() => {}); }
     if (account.githubAccessToken) { const token = unseal(account.githubAccessToken); if (token) await fetch('https://api.github.com/applications/' + config.github.clientId + '/grant', { method: 'DELETE', headers: { Accept: 'application/vnd.github+json', Authorization: `Basic ${Buffer.from(`${config.github.clientId}:${config.github.clientSecret}`).toString('base64')}`, 'Content-Type': 'application/json', 'X-GitHub-Api-Version': '2022-11-28' }, body: JSON.stringify({ access_token: token }) }).catch(() => {}); }
@@ -272,11 +299,13 @@ const forgotPassword = async (req, res, next) => {
     const safeGenericMessage = 'If an account exists for this email, a 6-digit OTP code has been sent.';
 
     const normalizedEmail = email.toLowerCase().trim();
-    const user = await User.findOne({ email: normalizedEmail });
+    const user = await User.findOne({ email: normalizedEmail }).select('+passwordResetOtpHash +passwordResetOtpExpires +passwordResetOtpAttempts +passwordResetOtpSentAt');
 
     if (!user) {
       return res.status(200).json({ success: true, message: safeGenericMessage });
     }
+
+    if (isOtpCoolingDown(user.passwordResetOtpSentAt)) return res.status(200).json({ success: true, message: safeGenericMessage });
 
     const otpCode = generateOtp();
     const { rawToken, hashedToken } = generateResetToken();
@@ -285,11 +314,13 @@ const forgotPassword = async (req, res, next) => {
     user.passwordResetTokenHash = hashedToken;
     user.passwordResetExpires = new Date(Date.now() + 10 * 60 * 1000);
     user.passwordResetOtpExpires = new Date(Date.now() + 10 * 60 * 1000);
+    user.passwordResetOtpAttempts = 0;
+    user.passwordResetOtpSentAt = new Date();
     await user.save();
 
     sendOtpEmail(user, otpCode).catch(err => logger.error('Async OTP email error:', err));
 
-    logger.info(`Password reset OTP requested for: ${user.email}`);
+    logger.info('Password reset OTP requested for an account.');
 
     return res.status(200).json({
       success: true,
@@ -313,21 +344,17 @@ const resetPassword = async (req, res, next) => {
 
     let user = null;
 
-    if (otp && email) {
+    if (typeof otp === 'string' && typeof email === 'string') {
       const normalizedEmail = email.toLowerCase().trim();
-      const hashedOtp = hashToken(otp.trim());
-
-      user = await User.findOne({
-        email: normalizedEmail,
-        passwordResetOtpHash: hashedOtp,
-        passwordResetOtpExpires: { $gt: new Date() },
-      }).select('+passwordResetOtpHash +passwordResetOtpExpires');
-    } else if (token) {
+      user = await User.findOne({ email: normalizedEmail }).select('+passwordResetOtpHash +passwordResetOtpExpires +passwordResetOtpAttempts');
+      const consumed = await consumeOtp(user, otp.trim(), { hashField: 'passwordResetOtpHash', expiresField: 'passwordResetOtpExpires', attemptsField: 'passwordResetOtpAttempts', extraSet: { passwordResetTokenHash: null, passwordResetExpires: null } });
+      if (!consumed) user = null;
+    } else if (typeof token === 'string' && token) {
       const hashedToken = hashToken(token);
-      user = await User.findOne({
+      user = await User.findOneAndUpdate({
         passwordResetTokenHash: hashedToken,
         passwordResetExpires: { $gt: new Date() },
-      }).select('+passwordResetTokenHash +passwordResetExpires');
+      }, { $set: { passwordResetTokenHash: null, passwordResetExpires: null, passwordResetOtpHash: null, passwordResetOtpExpires: null, passwordResetOtpAttempts: 0 } }, { new: true });
     } else {
       return res.status(400).json({ success: false, message: 'OTP code or reset token is required.', code: 'VALIDATION_ERROR' });
     }
@@ -337,15 +364,16 @@ const resetPassword = async (req, res, next) => {
     }
 
     user.passwordHash = await User.hashPassword(password);
-    user.passwordResetTokenHash = undefined;
-    user.passwordResetExpires = undefined;
-    user.passwordResetOtpHash = undefined;
-    user.passwordResetOtpExpires = undefined;
+    user.passwordResetTokenHash = null;
+    user.passwordResetExpires = null;
+    user.passwordResetOtpHash = null;
+    user.passwordResetOtpExpires = null;
+    user.passwordResetOtpAttempts = 0;
     await user.save();
     await AuthSession.deleteMany({ userId: user._id });
     await notifyIfAllowed(user, { category: 'security', title: 'Password reset', message: 'Your account password was reset. Sign in again on your devices.', link: '/login', dedupeKey: `password-reset:${Date.now()}` });
 
-    logger.info(`Password successfully reset for user: ${user.email}`);
+    logger.info('Password successfully reset for an account.');
 
     return res.status(200).json({
       success: true,
@@ -406,7 +434,7 @@ const githubCallback = async (req, res, next) => {
     const accessToken = tokenData.access_token;
 
     if (!accessToken) {
-      logger.error('GitHub OAuth token exchange failed:', tokenData);
+      logger.warn('GitHub OAuth token exchange was rejected.');
       return res.redirect(`${config.frontendUrl}/login?error=github_token_failed`);
     }
 
@@ -442,7 +470,7 @@ const githubCallback = async (req, res, next) => {
     user.githubAccessToken = seal(accessToken);
     await user.save();
 
-    logger.info(`GitHub OAuth connected for Digital Desk user ${user.email} (@${githubProfile.login})`);
+    logger.info('GitHub integration connected.');
 
     return res.redirect(`${config.frontendUrl}/settings?connected=github`);
   } catch (error) {
@@ -497,7 +525,7 @@ const googleCallback = async (req, res, next) => {
     const refreshToken = tokenData.refresh_token;
 
     if (!accessToken) {
-      logger.error('Google OAuth token exchange failed:', tokenData);
+      logger.warn('Google OAuth token exchange was rejected.');
       return res.redirect(`${config.frontendUrl}/login?error=google_token_failed`);
     }
 
@@ -536,7 +564,7 @@ const googleCallback = async (req, res, next) => {
     const token = await issueSession(user, req);
     sendAuthCookie(res, token);
 
-    logger.info(`Google OAuth login successful for: ${user.email}`);
+    logger.info('Google sign-in completed successfully.');
 
     return res.redirect(`${config.frontendUrl}/dashboard?connected=google`);
   } catch (error) {

@@ -25,7 +25,9 @@ const generateOtp = () => {
  * @returns {string}
  */
 const hashToken = (token) => {
-  return crypto.createHash('sha256').update(token).digest('hex');
+  // OTPs have only six digits, so a plain digest is cheap to brute-force if
+  // the database leaks. A server-side HMAC key prevents offline guessing.
+  return crypto.createHmac('sha256', config.jwtSecret).update(String(token)).digest('hex');
 };
 
 const encryptionKey = () => crypto.createHash('sha256').update(config.encryptionKey || config.jwtSecret).digest();
