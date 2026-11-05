@@ -6,10 +6,9 @@ const getGoogleAccessToken = async (user) => {
   if (!user.googleAccessToken && !user.googleRefreshToken) throw Object.assign(new Error('Google is not connected.'), { status: 409 });
   let accessToken = '';
   try { accessToken = unseal(user.googleAccessToken); } catch { accessToken = ''; }
-  if (accessToken) {
-    const check = await fetch(`${GOOGLE_API}/oauth2/v1/tokeninfo?access_token=${encodeURIComponent(accessToken)}`, { signal: AbortSignal.timeout(8000) });
-    if (check.ok) return accessToken;
-  }
+  // Google API calls validate the access token themselves. Checking tokeninfo
+  // first adds a full network round trip to every Gmail and Calendar request.
+  if (accessToken) return accessToken;
   if (!user.googleRefreshToken || !config.google.clientId || !config.google.clientSecret) throw Object.assign(new Error('Google access expired or revoked. Reconnect Google.'), { status: 401 });
   let refreshToken;
   try { refreshToken = unseal(user.googleRefreshToken); } catch { throw Object.assign(new Error('Google credentials cannot be decrypted. Reconnect Google.'), { status: 401 }); }

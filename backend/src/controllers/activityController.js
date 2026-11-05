@@ -14,7 +14,7 @@ const getActivityFeed = async (req, res, next) => {
     let githubConnected = false;
     let googleMeetings = [];
     const providerErrors = {};
-    try {
+    const googleSync = (async () => { try {
       const googleUser = await require('../models/User').findById(req.user._id).select('+googleAccessToken +googleRefreshToken');
       if (googleUser.googleAccessToken || googleUser.googleRefreshToken) {
         const { googleFetch } = require('../services/googleService');
@@ -27,8 +27,8 @@ const getActivityFeed = async (req, res, next) => {
           url: event.htmlLink || '/calendar',
         }));
       }
-    } catch (error) { providerErrors.calendar = error.message; await notifyIfAllowed(req.user, { category: 'integrations', title: 'Google Calendar needs attention', message: 'Calendar sync failed. Reconnect Google in Settings.', link: '/settings', dedupeKey: `integration:google:${error.status || error.message}` }); }
-    try {
+    } catch (error) { providerErrors.calendar = error.message; await notifyIfAllowed(req.user, { category: 'integrations', title: 'Google Calendar needs attention', message: 'Calendar sync failed. Reconnect Google in Settings.', link: '/settings', dedupeKey: `integration:google:${error.status || error.message}` }); } })();
+    const githubSync = (async () => { try {
       const githubUser = await require('../models/User').findById(req.user._id).select('+githubAccessToken');
       if (githubUser.githubAccessToken) {
         githubConnected = true;
@@ -37,7 +37,8 @@ const getActivityFeed = async (req, res, next) => {
         githubRecent7d = result.activityRecent;
       }
       else providerErrors.github = 'GitHub is not connected.';
-    } catch (error) { providerErrors.github = error.message; await notifyIfAllowed(req.user, { category: 'integrations', title: 'GitHub needs attention', message: 'GitHub sync failed. Reconnect GitHub in Settings.', link: '/settings', dedupeKey: `integration:github:${error.status || error.message}` }); }
+    } catch (error) { providerErrors.github = error.message; await notifyIfAllowed(req.user, { category: 'integrations', title: 'GitHub needs attention', message: 'GitHub sync failed. Reconnect GitHub in Settings.', link: '/settings', dedupeKey: `integration:github:${error.status || error.message}` }); } })();
+    await Promise.all([googleSync, githubSync]);
     const activities = [
       ...githubActivities,
       ...tasks.map(t => ({ id: `task-${t._id}`, timestamp: t.completed ? (t.completedAt || t.updatedAt) : (t.createdAt || t.updatedAt), type: 'task', icon: 'task', title: t.completed ? 'Completed task' : 'Task added', detail: t.title, url: '/tasks' })),

@@ -118,7 +118,7 @@ export const MusicPlayerBar = () => {
             objectFit: 'cover',
             boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
           }}
-        /> : <div style={{ width: 48, height: 48, borderRadius: 8, background: '#155b3a' }} />}
+        /> : null}
         <div>
           <div style={{ fontSize: '14px', fontWeight: 700, color: '#FFFFFF' }}>
             {track.title}

@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { LogoFull } from '../../components/common/Logo';
 import Input from '../../components/common/Input';
 import PasswordInput from '../../components/common/PasswordInput';
 import Button from '../../components/common/Button';
@@ -9,6 +8,7 @@ import ErrorMessage from '../../components/common/ErrorMessage';
 import { authService } from '../../services/authService';
 import { useToast } from '../../context/ToastContext';
 import { Mail, ArrowLeft, CheckCircle2, ShieldCheck, RefreshCw, KeyRound } from 'lucide-react';
+import AuthLayout from './AuthLayout';
 
 export const ForgotPasswordPage = () => {
   const [step, setStep] = useState(1); // 1: Send OTP, 2: OTP + New Password Form, 3: Success
@@ -131,34 +131,9 @@ export const ForgotPasswordPage = () => {
   };
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        backgroundColor: 'var(--color-bg)',
-        backgroundImage: `radial-gradient(circle at 50% 0%, rgba(16, 185, 129, 0.08) 0%, transparent 60%)`,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '32px 20px',
-      }}
-    >
-      <div style={{ marginBottom: '28px' }}>
-        <LogoFull size={42} />
-      </div>
-
-      <div
-        style={{
-          width: '100%',
-          maxWidth: '460px',
-          backgroundColor: 'var(--color-surface)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius-xl)',
-          boxShadow: 'var(--shadow-xl)',
-          padding: '36px',
-        }}
-      >
-        <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+    <AuthLayout className="auth-forgot-page">
+      <div>
+        <div className="auth-heading">
           <div
             style={{
               width: '52px',
@@ -181,30 +156,30 @@ export const ForgotPasswordPage = () => {
             )}
           </div>
 
-          <h2 style={{ fontSize: '26px', fontWeight: 800, color: 'var(--color-text)', fontFamily: 'var(--font-heading)', marginBottom: '8px' }}>
-            {step === 1 ? 'Forgot Your Password?' : step === 2 ? 'Security Verification' : 'Password Reset Complete'}
+          <h2>
+            {step === 1 ? 'Reset Your Password' : step === 2 ? 'Security Verification' : 'Password Reset Complete'}
           </h2>
 
           <p style={{ fontSize: '14px', color: 'var(--color-text-muted)', lineHeight: 1.5, maxWidth: '380px', margin: '0 auto' }}>
             {step === 1
-              ? "Enter your account email to receive a 6-digit OTP verification code."
+              ? "Don't worry. We'll help you get back into your workspace."
               : step === 2
               ? `Enter the 6-digit OTP code sent to ${email} and your new password.`
               : 'Your password has been updated successfully. You can now log in.'}
           </p>
         </div>
 
-        {error && <ErrorMessage title="Error" message={error} />}
+        {error && <div className="auth-feedback"><ErrorMessage title="Error" message={error} /></div>}
 
         {/* STEP 1: Enter Email */}
         {step === 1 && (
-          <form onSubmit={handleRequestOtp} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <form onSubmit={handleRequestOtp} className="auth-form" noValidate>
             <Input
-              label="Account Email Address"
+              label="Email Address"
               type="email"
               id="forgot-email"
               name="email"
-              placeholder="alex@digitaldesk.app"
+              placeholder="you@example.com"
               icon={Mail}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -213,7 +188,7 @@ export const ForgotPasswordPage = () => {
             />
 
             <Button type="submit" variant="primary" size="lg" fullWidth isLoading={loading}>
-              Send 6-Digit OTP Code
+              Send Reset Link
             </Button>
 
             <div style={{ textAlign: 'center', marginTop: '8px' }}>
@@ -237,7 +212,7 @@ export const ForgotPasswordPage = () => {
 
         {/* STEP 2: 6-Digit OTP Code + New Password */}
         {step === 2 && (
-          <form onSubmit={handleVerifyOtpAndReset} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <form onSubmit={handleVerifyOtpAndReset} className="auth-form">
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                 <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-text)' }}>
@@ -248,7 +223,7 @@ export const ForgotPasswordPage = () => {
                 </span>
               </div>
 
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+              <div className="auth-otp-row">
                 {otpDigits.map((digit, idx) => (
                   <input
                     key={idx}
@@ -260,15 +235,10 @@ export const ForgotPasswordPage = () => {
                     onChange={(e) => handleDigitChange(idx, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(idx, e)}
                     style={{
-                      width: '52px',
-                      height: '56px',
                       borderRadius: 'var(--radius-md)',
                       border: digit ? '2px solid var(--color-brand)' : '1px solid var(--color-border)',
                       backgroundColor: digit ? 'var(--color-brand-subtle)' : 'var(--color-surface)',
                       color: 'var(--color-brand-dark)',
-                      fontSize: '22px',
-                      fontWeight: 800,
-                      textAlign: 'center',
                       outline: 'none',
                       boxShadow: 'var(--shadow-sm)',
                       transition: 'all var(--transition-fast)',
@@ -300,7 +270,7 @@ export const ForgotPasswordPage = () => {
               Verify OTP & Reset Password
             </Button>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+            <div className="auth-inline-actions">
               <button
                 type="button"
                 onClick={() => setStep(1)}
@@ -333,22 +303,8 @@ export const ForgotPasswordPage = () => {
 
         {/* STEP 3: Success Banner */}
         {step === 3 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', textAlign: 'center' }}>
-            <div
-              style={{
-                padding: '20px',
-                borderRadius: 'var(--radius-lg)',
-                backgroundColor: 'var(--color-success-bg)',
-                border: '1px solid var(--color-success-border)',
-                color: 'var(--color-success)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '12px',
-                fontWeight: 700,
-                fontSize: '15px',
-              }}
-            >
+          <div className="auth-form">
+            <div className="auth-success">
               <CheckCircle2 size={24} />
               <span>Password updated successfully!</span>
             </div>
@@ -359,7 +315,7 @@ export const ForgotPasswordPage = () => {
           </div>
         )}
       </div>
-    </div>
+    </AuthLayout>
   );
 };
 
