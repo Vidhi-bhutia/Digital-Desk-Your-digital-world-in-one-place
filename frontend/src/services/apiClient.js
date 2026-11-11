@@ -1,4 +1,15 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+// In production the Vercel frontend proxies /api to the backend. Keeping API
+// calls same-origin is important: browsers increasingly block third-party
+// cookies, which would otherwise silently sign users out of a separate API
+// domain. Vite proxies the same /api path to localhost during development.
+export const API_BASE_URL = import.meta.env.PROD
+  ? '/api'
+  : (import.meta.env.VITE_API_URL || '/api');
+
+export const apiUrl = endpoint => {
+  if (endpoint.startsWith('http')) return endpoint;
+  return `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+};
 
 /**
  * Custom Error class for API responses
@@ -17,7 +28,7 @@ export class ApiError extends Error {
  * Centralized fetch wrapper for Digital Desk frontend
  */
 export const apiClient = async (endpoint, options = {}) => {
-  const url = endpoint.startsWith('http') ? endpoint : `${API_URL}${endpoint}`;
+  const url = apiUrl(endpoint);
   
   const headers = {
     'Content-Type': 'application/json',

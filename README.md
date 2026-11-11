@@ -10,15 +10,17 @@ Digital Desk is a React/Vite personal workspace backed by an Express API and Mon
 
 Never commit `.env` files. OAuth and provider secrets belong only in the backend environment.
 
-## Deploy the backend to Vercel
+## Deploy to Vercel
 
-Set the Vercel project's Root Directory to `backend` so Vercel detects the Express application in `src/server.js`. Configure the production environment variables there, including `MONGO_URI`, then redeploy. The app connects to MongoDB before each request and reuses the connection while the function instance stays warm.
+Deploy the `backend` directory as a Vercel project and the `frontend` directory as a separate Vercel project. The frontend's `vercel.json` proxies `/api/*` to `https://digital-desk-be.vercel.app/api/*` so authentication cookies stay on the frontend's origin; update that destination if the backend project uses a different domain. Set the backend's `FRONTEND_URL` to the frontend's exact HTTPS origin (for example, `https://digital-desk-fe.vercel.app`) and configure its production environment variables, including `MONGO_URI`, then redeploy both projects. The app connects to MongoDB before each request and reuses the connection while the function instance stays warm.
+
+Production API calls use the same-origin `/api` proxy. Do not set `VITE_API_URL` to `localhost` or the separate backend domain in Vercel. After deploying this proxy change, log in again once so the browser receives its auth cookie on the frontend origin.
 
 ## Provider configuration
 
 - **GitHub:** Connect using a fine grained personal access token with the needed repository read permissions. The API validates the token with GitHub before storing it encrypted. The optional GitHub OAuth client variables support the existing login flow.
-- **GitHub OAuth:** Create a GitHub OAuth App. Set `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, and `GITHUB_CALLBACK_URL` to `http://localhost:5000/api/integrations/github/callback` (register this exact callback URL in the app). The redirect is state checked and connects to the currently signed-in Digital Desk account.
-- **Google Gmail and Calendar:** Create OAuth 2.0 Web credentials in Google Cloud Console, enable Gmail API and Google Calendar API, configure the consent screen, and set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_CALLBACK_URL`. Register `http://localhost:5000/api/integrations/google/callback` as an authorized redirect URI. Gmail read access and Calendar event access are requested.
+- **GitHub OAuth:** Create a GitHub OAuth App. Set `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, and `GITHUB_CALLBACK_URL` to `http://localhost:5000/api/integrations/github/callback` locally, or `https://<frontend-domain>/api/integrations/github/callback` in production (register the matching callback URL in GitHub). The redirect is state checked and connects to the currently signed-in Digital Desk account.
+- **Google Gmail and Calendar:** Create OAuth 2.0 Web credentials in Google Cloud Console, enable Gmail API and Google Calendar API, configure the consent screen, and set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_CALLBACK_URL`. Register `http://localhost:5000/api/integrations/google/callback` locally, or `https://<frontend-domain>/api/integrations/google/callback` in production as an authorized redirect URI. Gmail read access and Calendar event access are requested.
 - **OpenWeather:** Set `OPENWEATHER_API_KEY`. Browser geolocation is requested by the dashboard; alternatively call the weather API with a manually selected `city`.
 - **Web search:** Set a server side `TAVILY_API_KEY`. Without it, search returns personal results and reports web search as unavailable.
 - **Database:** Set `MONGO_URI` to a persistent MongoDB instance. The server never silently falls back to volatile storage. Tests use an isolated MongoMemoryServer fixture.

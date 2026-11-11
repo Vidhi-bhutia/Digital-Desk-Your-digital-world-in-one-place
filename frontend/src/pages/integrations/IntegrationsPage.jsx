@@ -6,7 +6,7 @@ import Badge from '../../components/common/Badge';
 import MusicPlayerBar from '../../components/layout/MusicPlayerBar';
 import SearchModal from '../../components/dashboard/SearchModal';
 import Modal from '../../components/common/Modal';
-import { apiClient } from '../../services/apiClient';
+import { apiClient, apiUrl } from '../../services/apiClient';
 import { useToast } from '../../context/ToastContext';
 import { 
   Github, 
@@ -59,7 +59,7 @@ export const IntegrationsPage = ({ embedded = false }) => {
     };
     finish();
   }, []);
-  const startGitHubOAuth = () => { window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/github`; };
+  const startGitHubOAuth = () => { window.location.href = apiUrl('/auth/github'); };
   const disconnect = async (provider, revoke = false) => {
     setBusyProvider(provider);
     try {
@@ -192,7 +192,7 @@ export const IntegrationsPage = ({ embedded = false }) => {
 
             <div style={{ display: 'flex', gap: '10px', marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid var(--color-border-subtle)' }}>
               {integrations?.google?.connected && <Button variant="danger" size="sm" isLoading={busyProvider === 'google'} onClick={() => setRemovalProvider('google')}>Disconnect and revoke</Button>}
-              <Button variant="primary" size="sm" icon={RefreshCw} onClick={() => { window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/google/connect`; }}>
+              <Button variant="primary" size="sm" icon={RefreshCw} onClick={() => { window.location.href = apiUrl('/auth/google/connect'); }}>
                 Configure Google
               </Button>
               <Button variant="outline" size="sm" icon={ExternalLink} onClick={() => window.open('https://calendar.google.com', '_blank')}>
