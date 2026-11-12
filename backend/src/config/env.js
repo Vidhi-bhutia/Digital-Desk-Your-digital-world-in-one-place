@@ -1,5 +1,6 @@
 const dotenv = require('dotenv');
 const path = require('path');
+const { oauthCallbackUrl } = require('../utils/oauthCallback');
 
 // Load environment variables from .env file
 dotenv.config({ path: path.join(__dirname, '../../.env') });
@@ -54,5 +55,15 @@ const config = {
     attributionUrl: 'https://commons.wikimedia.org/wiki/File:Audionautix-com-ccby-emeraldtherapy.mp3',
   },
 };
+
+for (const provider of ['github', 'google']) {
+  config[provider].callbackUrl = oauthCallbackUrl({
+    callbackUrl: process.env[`${provider.toUpperCase()}_CALLBACK_URL`]?.trim(),
+    frontendUrl: config.frontendUrl,
+    backendUrl: config.backendUrl,
+    nodeEnv: config.nodeEnv,
+    provider,
+  });
+}
 
 module.exports = config;

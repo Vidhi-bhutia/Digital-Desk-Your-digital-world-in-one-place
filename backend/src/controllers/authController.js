@@ -586,7 +586,7 @@ const googleConnectStart = (req, res) => {
 
 const googleConnectCallback = async (req, res, next) => {
   try {
-    if (!req.query.code || req.query.state !== req.cookies.google_connect_state) return res.redirect(`${config.frontendUrl}/settings?error=google_state`);
+    if (!req.query.code || !req.query.state || req.query.state !== req.cookies.google_connect_state) return res.redirect(`${config.frontendUrl}/settings?error=google_state`);
     res.clearCookie('google_connect_state');
     const callbackUrl = config.google.callbackUrl || `${config.backendUrl}/api/integrations/google/callback`;
     const response = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ code: req.query.code, client_id: config.google.clientId, client_secret: config.google.clientSecret, redirect_uri: callbackUrl, grant_type: 'authorization_code' }) });

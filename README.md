@@ -16,6 +16,15 @@ Deploy the `backend` directory as a Vercel project and the `frontend` directory 
 
 Production API calls use the same-origin `/api` proxy. Do not set `VITE_API_URL` to `localhost` or the separate backend domain in Vercel. After deploying this proxy change, log in again once so the browser receives its auth cookie on the frontend origin.
 
+OAuth must also return through that frontend proxy. Production callback URLs use the first `FRONTEND_URL` origin, including when an older callback environment variable still names the backend domain. Register these exact URLs with the providers and set the matching backend environment variables:
+
+```text
+GITHUB_CALLBACK_URL=https://digital-desk-fe.vercel.app/api/integrations/github/callback
+GOOGLE_CALLBACK_URL=https://digital-desk-fe.vercel.app/api/integrations/google/callback
+```
+
+Use your actual frontend domain if different. In GitHub, update the OAuth App's **Authorization callback URL**; in Google Cloud, add the Google URL under the Web client's **Authorized redirect URIs**. Redeploy the backend after changing its environment. Starting OAuth on the frontend and returning to the backend loses the host-only state cookie and produces `github_state` or `google_state`; incognito mode cannot fix that domain mismatch. Keep state validation enabled.
+
 ## Provider configuration
 
 - **GitHub:** Connect using a fine grained personal access token with the needed repository read permissions. The API validates the token with GitHub before storing it encrypted. The optional GitHub OAuth client variables support the existing login flow.
