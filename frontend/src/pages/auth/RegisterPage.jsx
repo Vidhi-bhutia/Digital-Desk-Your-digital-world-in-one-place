@@ -53,6 +53,7 @@ export const RegisterPage = () => {
         <Input label="Email Address" type="email" id="register-email" name="email" placeholder="you@example.com" icon={Mail} value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required />
         <PasswordInput label="Password" id="register-password" name="password" value={password} onChange={(event) => setPassword(event.target.value)} showStrength autoComplete="new-password" required />
         <PasswordInput label="Confirm Password" id="register-confirm-password" name="confirmPassword" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} error={confirmPassword && password !== confirmPassword ? 'Passwords do not match' : null} autoComplete="new-password" required />
+        <p style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.6 }}>By creating an account, you agree to our <Link to="/terms-of-service">Terms of Service</Link>. Read our <Link to="/privacy-policy">Privacy Policy</Link> to understand how we handle your information.</p>
         <Button type="submit" variant="primary" size="lg" fullWidth isLoading={loading} icon={UserPlus}>Create Account</Button>
       </form>
       <div className="auth-switch">Already have an account? <Link className="auth-link" to="/login">Log in</Link></div>

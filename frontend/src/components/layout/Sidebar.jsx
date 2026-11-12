@@ -7,6 +7,8 @@ import {
   Activity, 
   Settings, 
   User, 
+  ShieldCheck,
+  FileText,
   LogOut, 
   Sun, 
   Moon 
@@ -41,6 +43,8 @@ export const Sidebar = ({ isCollapsed = false, toggleCollapse, onCloseMobile }) 
       items: [
         { label: 'Settings', path: '/settings', icon: Settings },
         { label: 'Profile', path: '/profile', icon: User },
+        { label: 'Privacy Policy', path: '/privacy-policy', icon: ShieldCheck },
+        { label: 'Terms of Service', path: '/terms-of-service', icon: FileText },
       ],
     },
   ];

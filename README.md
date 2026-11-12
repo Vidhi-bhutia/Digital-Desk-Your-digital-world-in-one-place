@@ -27,6 +27,12 @@ Use your actual frontend domain if different. In GitHub, update the OAuth App's 
 
 ## Provider configuration
 
+### Public policies for Google OAuth
+
+The frontend exposes `/privacy-policy` and `/terms-of-service` without requiring login. Both are linked from authentication screens and the app sidebar. The public operator is Vidhi Bhutia and the contact email is vidhibhutia2407@gmail.com. You can override these with `VITE_PUBLIC_OPERATOR_NAME` and `VITE_PUBLIC_SUPPORT_EMAIL` in the frontend Vercel environment, then rebuild/redeploy. These values are public browser configuration, not secrets.
+
+After deploying, use `https://digital-desk-fe.vercel.app/privacy-policy` and `https://digital-desk-fe.vercel.app/terms-of-service` in Google Auth Platform Branding (replace the domain if needed). Review the policies against your actual hosting, retention, and support practices before submission. These pages do not complete Google's scope verification: Gmail read access is a restricted scope, and Google's verification and possibly security assessment requirements may apply. See [Google's production policy requirements](https://developers.google.com/identity/protocols/oauth2/production-readiness/policy-compliance).
+
 - **GitHub:** Connect using a fine grained personal access token with the needed repository read permissions. The API validates the token with GitHub before storing it encrypted. The optional GitHub OAuth client variables support the existing login flow.
 - **GitHub OAuth:** Create a GitHub OAuth App. Set `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, and `GITHUB_CALLBACK_URL` to `http://localhost:5000/api/integrations/github/callback` locally, or `https://<frontend-domain>/api/integrations/github/callback` in production (register the matching callback URL in GitHub). The redirect is state checked and connects to the currently signed-in Digital Desk account.
 - **Google Gmail and Calendar:** Create OAuth 2.0 Web credentials in Google Cloud Console, enable Gmail API and Google Calendar API, configure the consent screen, and set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_CALLBACK_URL`. Register `http://localhost:5000/api/integrations/google/callback` locally, or `https://<frontend-domain>/api/integrations/google/callback` in production as an authorized redirect URI. Gmail read access and Calendar event access are requested.

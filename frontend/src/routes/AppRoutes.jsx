@@ -12,6 +12,7 @@ import VerifyEmailPage from '../pages/auth/VerifyEmailPage';
 
 // App Pages
 import DashboardPage from '../pages/dashboard/DashboardPage';
+import LegalPage from '../pages/legal/LegalPage';
 
 import { 
   SearchPage, 
@@ -25,6 +26,8 @@ import {
 export const AppRoutes = () => {
   return (
     <Routes>
+      <Route path="/privacy-policy" element={<LegalPage type="privacy" />} />
+      <Route path="/terms-of-service" element={<LegalPage type="terms" />} />
       {/* Public Only Auth Routes */}
       <Route
         path="/login"
